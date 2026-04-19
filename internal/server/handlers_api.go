@@ -1,7 +1,6 @@
 package server
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -221,21 +220,7 @@ func (s *Server) handleScan(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	go func() {
-		defer func() {
-			if r := recover(); r != nil {
-				slog.Error("scan panicked", "panic", r)
-				s.scan.broadcast(ScanEvent{Type: "error", Message: "internal error"})
-			}
-		}()
-		s.scan.broadcast(ScanEvent{Type: "started"})
-		if err := s.scanner.ScanAll(context.Background(), libs); err != nil {
-			slog.Error("scan failed", "err", err)
-			s.scan.broadcast(ScanEvent{Type: "error", Message: err.Error()})
-		} else {
-			s.scan.broadcast(ScanEvent{Type: "complete"})
-		}
-	}()
+	s.launchScan(libs)
 
 	writeJSON(w, http.StatusAccepted, map[string]string{"status": "started"})
 }

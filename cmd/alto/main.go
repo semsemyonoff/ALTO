@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -145,7 +144,6 @@ func main() {
 
 	// Upsert all configured libraries and collect their server configs.
 	libCfgs := make([]server.LibraryConfig, 0, len(cfg.Libraries))
-	dbLibs := make([]db.Library, 0, len(cfg.Libraries))
 	for _, lib := range cfg.Libraries {
 		id, err := database.UpsertLibrary(lib.Name, lib.Path)
 		if err != nil {
@@ -153,7 +151,6 @@ func main() {
 			os.Exit(1)
 		}
 		libCfgs = append(libCfgs, server.LibraryConfig{ID: id, Name: lib.Name, Path: lib.Path})
-		dbLibs = append(dbLibs, db.Library{ID: id, Name: lib.Name, Path: lib.Path})
 	}
 
 	scanner := library.NewScanner(database, nil, library.ScanConfig{
@@ -178,11 +175,7 @@ func main() {
 	mux.Handle("/", srv)
 
 	// Kick off an initial background scan so the UI is populated on first start.
-	go func() {
-		if err := scanner.ScanAll(context.Background(), dbLibs); err != nil {
-			slog.Warn("initial scan error", "err", err)
-		}
-	}()
+	srv.RunInitialScan()
 
 	addr := ":" + cfg.Port
 	slog.Info("starting ALTO", "addr", addr, "libraries", len(cfg.Libraries))

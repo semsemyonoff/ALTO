@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"log/slog"
 	"net/http"
 	"path/filepath"
 	"sync"
@@ -151,6 +152,40 @@ func NewWithEngine(database *db.DB, scanner LibraryScanner, engine TranscodeEngi
 // ServeHTTP implements http.Handler.
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	s.mux.ServeHTTP(w, r)
+}
+
+// RunInitialScan starts a background scan of all configured libraries through
+// the scan state machine so it is visible to concurrent scan requests.
+// If a scan is already running, this call is a no-op.
+func (s *Server) RunInitialScan() {
+	libs := make([]db.Library, 0, len(s.cfg.Libraries))
+	for _, l := range s.cfg.Libraries {
+		libs = append(libs, db.Library{ID: l.ID, Name: l.Name, Path: l.Path})
+	}
+	if len(libs) == 0 || !s.scan.start() {
+		return
+	}
+	s.launchScan(libs)
+}
+
+// launchScan starts the scan goroutine. The caller must have already called
+// s.scan.start() successfully.
+func (s *Server) launchScan(libs []db.Library) {
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				slog.Error("scan panicked", "panic", r)
+				s.scan.broadcast(ScanEvent{Type: "error", Message: "internal error"})
+			}
+		}()
+		s.scan.broadcast(ScanEvent{Type: "started"})
+		if err := s.scanner.ScanAll(context.Background(), libs); err != nil {
+			slog.Error("scan failed", "err", err)
+			s.scan.broadcast(ScanEvent{Type: "error", Message: err.Error()})
+		} else {
+			s.scan.broadcast(ScanEvent{Type: "complete"})
+		}
+	}()
 }
 
 func (s *Server) registerRoutes() {

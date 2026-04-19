@@ -2,6 +2,7 @@ package db
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -334,7 +335,7 @@ func (db *DB) GetDirectoryByPath(libraryID int64, path string) (*Directory, erro
 		 FROM directories WHERE library_id=? AND path=?`,
 		libraryID, path,
 	).Scan(&d.ID, &d.LibraryID, &d.Path, &d.HasCover, &d.CoverPath, &d.CodecSummary)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
 	if err != nil {

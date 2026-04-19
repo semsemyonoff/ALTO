@@ -288,7 +288,7 @@ func estimateOutputBytes(job Job) uint64 {
 		switch job.Preset.Codec {
 		case CodecOpus:
 			bps := parseOpusBitrateBps(job.Preset.Bitrate)
-			total += uint64(fi.Duration) * bps / 8
+			total += uint64(fi.Duration * float64(bps) / 8)
 		case CodecFLAC:
 			total += uint64(fi.Size) //nolint:gosec // Size is a positive file size.
 		}
@@ -296,11 +296,14 @@ func estimateOutputBytes(job Job) uint64 {
 	return total
 }
 
-// parseOpusBitrateBps converts a bitrate string like "128k" to bits per second.
+// parseOpusBitrateBps converts a bitrate string like "128k" or "128000" to bits per second.
 func parseOpusBitrateBps(bitrate string) uint64 {
-	trimmed := strings.TrimSuffix(bitrate, "k")
-	n, _ := strconv.ParseUint(trimmed, 10, 64)
-	return n * 1000
+	if trimmed, ok := strings.CutSuffix(bitrate, "k"); ok {
+		n, _ := strconv.ParseUint(trimmed, 10, 64)
+		return n * 1000
+	}
+	n, _ := strconv.ParseUint(bitrate, 10, 64)
+	return n
 }
 
 // makeProgressFn returns a function that parses ffmpeg stderr lines and sends
@@ -354,9 +357,8 @@ func BuildOpusArgs(ffmpegBin, input, output string, preset Preset) []string {
 	if preset.CopyMetadata {
 		args = append(args, "-map_metadata", "0")
 	}
-	if preset.CopyCover {
-		args = append(args, "-c:v", "copy")
-	}
+	// Opus (Ogg) containers do not support embedded video streams; cover art
+	// cannot be copied via -c:v copy for this codec.
 	args = append(args, "-y", output)
 	return args
 }
@@ -412,6 +414,7 @@ func copyFile(src, dst string) error {
 
 	if _, err := io.Copy(out, in); err != nil {
 		_ = out.Close()
+		_ = os.Remove(dst)
 		return err
 	}
 	return out.Close()
