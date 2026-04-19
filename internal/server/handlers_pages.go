@@ -2,12 +2,14 @@ package server
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"html/template"
 	"log/slog"
 	"math"
 	"net/http"
 	"net/url"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -207,6 +209,7 @@ type trackRow struct {
 type appShellData struct {
 	Libraries   []db.Library
 	SelectedID  int64
+	Notice      string
 	TopDirsHTML template.HTML // pre-rendered tree node HTML
 }
 
@@ -402,13 +405,17 @@ func (s *Server) handleDirPage(w http.ResponseWriter, r *http.Request) {
 
 	resolved, err := LibraryOnlyValidate(path, s.libRoots())
 	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			redirectToIndexWithNotice(w, r, noticeDirectoryNotFound)
+			return
+		}
 		WritePathError(w, err)
 		return
 	}
 
 	lib, rel, ok := s.findLibraryForPath(resolved)
 	if !ok {
-		http.Error(w, "library not found for path", http.StatusNotFound)
+		redirectToIndexWithNotice(w, r, noticeDirectoryNotFound)
 		return
 	}
 
@@ -418,11 +425,11 @@ func (s *Server) handleDirPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if dir == nil {
-		http.Error(w, "directory not found", http.StatusNotFound)
+		redirectToIndexWithNotice(w, r, noticeDirectoryNotFound)
 		return
 	}
 	if !dir.IsAudio {
-		http.Error(w, "directory not found", http.StatusNotFound)
+		redirectToIndexWithNotice(w, r, noticeDirectoryNotFound)
 		return
 	}
 
@@ -450,6 +457,25 @@ type indexPageData struct {
 	appShellData
 }
 
+const noticeDirectoryNotFound = "directory_not_found"
+
+func noticeMessage(key string) string {
+	switch key {
+	case noticeDirectoryNotFound:
+		return "Directory not found."
+	default:
+		return ""
+	}
+}
+
+func redirectToIndexWithNotice(w http.ResponseWriter, r *http.Request, notice string) {
+	target := "/"
+	if notice != "" {
+		target += "?notice=" + url.QueryEscape(notice)
+	}
+	http.Redirect(w, r, target, http.StatusFound)
+}
+
 // handleIndex renders the main application page.
 // GET /{$}
 func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
@@ -460,6 +486,7 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	shell.Notice = noticeMessage(r.URL.Query().Get("notice"))
 	data := indexPageData{appShellData: shell}
 	s.tmpl.render(w, "index.html", data)
 }

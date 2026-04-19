@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 	"path/filepath"
+	"strings"
 	"sync"
 
 	"github.com/semsemyonoff/ALTO/internal/db"
@@ -242,13 +243,22 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("POST /api/transcode", s.handleTranscodeStart)
 	s.mux.HandleFunc("GET /api/transcode/{jobID}/progress", s.handleTranscodeProgress)
 	s.mux.HandleFunc("GET /api/transcode/{jobID}/log", s.handleTranscodeLog)
+	s.mux.HandleFunc("GET /{path...}", s.handleNotFoundPage)
 
-	s.mux.Handle("/favicon.ico", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	s.mux.Handle("GET /favicon.ico", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		http.ServeFile(w, r, filepath.Join(s.staticDir, "logo.svg"))
 	}))
 
-	// Static file serving (no method restriction to support GET + HEAD).
-	s.mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir(s.staticDir))))
+	// Static file serving supports GET and HEAD through the GET pattern.
+	s.mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServer(http.Dir(s.staticDir))))
+}
+
+func (s *Server) handleNotFoundPage(w http.ResponseWriter, r *http.Request) {
+	if strings.HasPrefix(r.URL.Path, "/api/") {
+		http.NotFound(w, r)
+		return
+	}
+	redirectToIndexWithNotice(w, r, noticeDirectoryNotFound)
 }
 
 func (s *Server) snapshotDirectoryPaths(libs []db.Library) (map[int64]map[string]struct{}, error) {

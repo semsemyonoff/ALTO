@@ -1072,7 +1072,7 @@ func writeTemplateFile(t *testing.T, dir, name, content string) {
 func minimalIndexTemplates(t *testing.T) string {
 	t.Helper()
 	dir := t.TempDir()
-	writeTemplateFile(t, dir, "base.html", `{{define "base"}}<!DOCTYPE html><html><body>{{template "sidebar" .}}{{template "content" .}}</body></html>{{end}}`)
+	writeTemplateFile(t, dir, "base.html", `{{define "base"}}<!DOCTYPE html><html><body>{{if .Notice}}<div class="app-notice">{{.Notice}}</div>{{end}}{{template "sidebar" .}}{{template "content" .}}</body></html>{{end}}`)
 	writeTemplateFile(t, dir, "index.html", `{{define "sidebar"}}<nav id="tree-root">{{.TopDirsHTML}}</nav>{{end}}{{define "content"}}<main>Select a directory</main>{{end}}{{define "index.html"}}{{template "base" .}}{{end}}`)
 	return dir
 }
@@ -1097,6 +1097,69 @@ func TestHandleIndex_NoLibraries(t *testing.T) {
 	body := w.Body.String()
 	if !strings.Contains(body, "tree-root") {
 		t.Errorf("response should contain tree-root element; got:\n%s", body)
+	}
+}
+
+func TestHandleIndex_WithNotice(t *testing.T) {
+	database, err := db.Open(":memory:")
+	if err != nil {
+		t.Fatalf("db.Open: %v", err)
+	}
+	defer func() { _ = database.Close() }()
+
+	tmplDir := minimalIndexTemplates(t)
+	srv := New(database, &mockScanner{}, Config{TemplateDir: tmplDir})
+
+	req := httptest.NewRequest(http.MethodGet, "/?notice=directory_not_found", nil)
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d: %s", w.Code, w.Body.String())
+	}
+	if !strings.Contains(w.Body.String(), "Directory not found.") {
+		t.Fatalf("expected notice in response, got:\n%s", w.Body.String())
+	}
+}
+
+func TestHandleUnknownPage_RedirectsToIndexWithNotice(t *testing.T) {
+	database, err := db.Open(":memory:")
+	if err != nil {
+		t.Fatalf("db.Open: %v", err)
+	}
+	defer func() { _ = database.Close() }()
+
+	tmplDir := minimalIndexTemplates(t)
+	srv := New(database, &mockScanner{}, Config{TemplateDir: tmplDir})
+
+	req := httptest.NewRequest(http.MethodGet, "/missing-page", nil)
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	if w.Code != http.StatusFound {
+		t.Fatalf("want 302, got %d", w.Code)
+	}
+	if got := w.Header().Get("Location"); got != "/?notice=directory_not_found" {
+		t.Fatalf("want redirect to /?notice=directory_not_found, got %q", got)
+	}
+}
+
+func TestHandleUnknownAPIPath_Stays404(t *testing.T) {
+	database, err := db.Open(":memory:")
+	if err != nil {
+		t.Fatalf("db.Open: %v", err)
+	}
+	defer func() { _ = database.Close() }()
+
+	tmplDir := minimalIndexTemplates(t)
+	srv := New(database, &mockScanner{}, Config{TemplateDir: tmplDir})
+
+	req := httptest.NewRequest(http.MethodGet, "/api/missing", nil)
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("want 404, got %d", w.Code)
 	}
 }
 

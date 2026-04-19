@@ -123,8 +123,11 @@ func TestHandleDirPage_NotInDB(t *testing.T) {
 	w := httptest.NewRecorder()
 	srv.ServeHTTP(w, req)
 
-	if w.Code != http.StatusNotFound {
-		t.Fatalf("want 404, got %d", w.Code)
+	if w.Code != http.StatusFound {
+		t.Fatalf("want 302, got %d", w.Code)
+	}
+	if got := w.Header().Get("Location"); got != "/?notice=directory_not_found" {
+		t.Fatalf("want redirect to /?notice=directory_not_found, got %q", got)
 	}
 }
 
@@ -169,8 +172,11 @@ func TestHandleDirPage_NonAudioDirectoryRejected(t *testing.T) {
 	w := httptest.NewRecorder()
 	srv.ServeHTTP(w, req)
 
-	if w.Code != http.StatusNotFound {
-		t.Fatalf("want 404, got %d: %s", w.Code, w.Body.String())
+	if w.Code != http.StatusFound {
+		t.Fatalf("want 302, got %d: %s", w.Code, w.Body.String())
+	}
+	if got := w.Header().Get("Location"); got != "/?notice=directory_not_found" {
+		t.Fatalf("want redirect to /?notice=directory_not_found, got %q", got)
 	}
 }
 

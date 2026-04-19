@@ -34,6 +34,9 @@
   </aside>
 
   <main class="app-content" id="content-area">
+    {{if .Notice}}
+    <div class="app-notice" role="status">{{.Notice}}</div>
+    {{end}}
     {{template "content" .}}
   </main>
 
