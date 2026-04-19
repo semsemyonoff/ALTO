@@ -15,12 +15,12 @@
     <img class="app-logo" src="/static/logo.svg" alt="ALTO logo">
     <span class="app-title">ALTO</span>
     <span class="header-spacer"></span>
-    <span id="scan-indicator" class="scan-status htmx-indicator">
+    <span id="scan-indicator" class="scan-status" style="display:none">
       <span class="spinner"></span> Scanning…
     </span>
     <button class="btn btn-ghost"
-            hx-post="/api/scan"
-            hx-indicator="#scan-indicator"
+            id="scan-btn"
+            onclick="altoTriggerScan()"
             title="Re-index all libraries">
       ↻ Re-index
     </button>
@@ -35,5 +35,48 @@
   </main>
 
 </div>
+
+<script>(function(){
+  var scanIndic = document.getElementById('scan-indicator');
+  var _scanES = null;
+
+  function showScanIndic() { if (scanIndic) scanIndic.style.display = ''; }
+  function hideScanIndic() { if (scanIndic) scanIndic.style.display = 'none'; }
+
+  function refreshTree() {
+    var sel = document.getElementById('library-select');
+    if (sel && typeof htmx !== 'undefined') {
+      htmx.ajax('GET', '/api/tree/' + sel.value + '/children', {target: '#tree-root', swap: 'innerHTML'});
+    }
+  }
+
+  function startScanSSE() {
+    if (_scanES) { _scanES.close(); }
+    showScanIndic();
+    _scanES = new EventSource('/api/scan/status');
+    _scanES.addEventListener('idle', function() {
+      _scanES.close(); _scanES = null; hideScanIndic();
+    });
+    _scanES.addEventListener('complete', function() {
+      _scanES.close(); _scanES = null; hideScanIndic(); refreshTree();
+    });
+    _scanES.addEventListener('error', function() {
+      _scanES.close(); _scanES = null; hideScanIndic();
+    });
+    _scanES.onerror = function() {
+      if (_scanES) { _scanES.close(); _scanES = null; } hideScanIndic();
+    };
+  }
+
+  // Exposed globally so directory.html can call it after post-transcode re-index.
+  window.altoTriggerScan = function(libraryId) {
+    var url = '/api/scan' + (libraryId ? '?library_id=' + encodeURIComponent(libraryId) : '');
+    fetch(url, {method: 'POST'})
+      .then(function() { startScanSSE(); })
+      .catch(function() {});
+  };
+})();
+</script>
+
 </body>
 </html>{{end}}

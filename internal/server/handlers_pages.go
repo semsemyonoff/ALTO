@@ -184,6 +184,7 @@ type trackRow struct {
 type dirPageData struct {
 	Path         string // absolute resolved path (for cover URL)
 	PathEncoded  string // URL-encoded path
+	LibraryID    int64
 	LibraryName  string
 	DirName      string
 	HasCover     bool
@@ -272,6 +273,7 @@ func buildDirPageData(lib LibraryConfig, dir *db.Directory, tracks []db.Track, r
 	return dirPageData{
 		Path:         resolvedPath,
 		PathEncoded:  url.QueryEscape(resolvedPath),
+		LibraryID:    lib.ID,
 		LibraryName:  lib.Name,
 		DirName:      filepath.Base(resolvedPath),
 		HasCover:     dir.HasCover,

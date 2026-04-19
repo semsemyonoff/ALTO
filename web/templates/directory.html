@@ -8,7 +8,7 @@
   <script src="/static/js/htmx.min.js" defer></script>
 </head>
 <body>
-<div id="dir-content" class="dir-page">
+<div id="dir-content" class="dir-page" data-library-id="{{.LibraryID}}">
 
   <div class="dir-header">
     {{if .HasCover}}
@@ -150,6 +150,7 @@
 
       <div class="form-actions" id="tc_done_actions" style="display:none">
         <button class="btn btn-ghost" onclick="altoHideTranscodePanel()">Close</button>
+        <button class="btn btn-secondary" id="tc_reindex_btn" style="display:none" onclick="altoPostTranscodeReindex()">↻ Re-index Library</button>
       </div>
     </div><!-- /tc_progress_area -->
 
@@ -324,7 +325,7 @@
         showTcError(data.error);
         return;
       }
-      startProgress(data.job_id);
+      startProgress(data.job_id, mode);
     })
     .catch(function(err){ showTcError(String(err)); });
   };
@@ -338,8 +339,10 @@
 
   var _es = null;
   var _logTimer = null;
+  var _tcMode = 'shared';
 
-  function startProgress(jobId){
+  function startProgress(jobId, mode){
+    _tcMode = mode || 'shared';
     var formArea = el('tc_form_area');
     var progressArea = el('tc_progress_area');
     if(formArea) formArea.style.display = 'none';
@@ -386,6 +389,10 @@
           }
         }
         if(doneActions) doneActions.style.display = 'block';
+        var reindexBtn = el('tc_reindex_btn');
+        if(reindexBtn && p.status === 'done' && (_tcMode === 'local' || _tcMode === 'shared')){
+          reindexBtn.style.display = '';
+        }
       }catch(_){}
       fetchLog(jobId);
     });
@@ -429,6 +436,7 @@
     var startBtn = el('tc_start_btn');
     var errEl = el('tc_error');
     var logEl = el('tc_log_body');
+    var reindexBtn = el('tc_reindex_btn');
     if(formArea) formArea.style.display = 'block';
     if(progressArea) progressArea.style.display = 'none';
     if(resultEl){ resultEl.style.display = 'none'; resultEl.textContent = ''; }
@@ -436,7 +444,21 @@
     if(startBtn){ startBtn.disabled = false; startBtn.textContent = '▶ Start'; }
     if(errEl) errEl.style.display = 'none';
     if(logEl) logEl.textContent = 'Loading\u2026';
+    if(reindexBtn) reindexBtn.style.display = 'none';
   }
+
+  window.altoPostTranscodeReindex = function(){
+    var dirContent = document.getElementById('dir-content');
+    var libId = dirContent ? dirContent.getAttribute('data-library-id') : null;
+    // If altoTriggerScan is available (page embedded in app shell), use it.
+    if(typeof window.altoTriggerScan === 'function'){
+      window.altoTriggerScan(libId);
+    } else {
+      // Standalone page: just POST and ignore progress.
+      var url = '/api/scan' + (libId ? '?library_id=' + encodeURIComponent(libId) : '');
+      fetch(url, {method: 'POST'}).catch(function(){});
+    }
+  };
 
   // Initialize preset list for default codec
   if(el('tc_preset')) populatePresets('flac');

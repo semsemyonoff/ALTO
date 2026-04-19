@@ -198,13 +198,13 @@
 - [x] run tests - must pass before next task
 
 ### Task 10: Re-indexing UI and scan integration
-- [ ] add "Re-index" button to the UI (header or library selector area)
-- [ ] implement scan trigger via HTMX POST to `/api/scan`
-- [ ] show scan progress indicator (spinner/progress) connected to `/api/scan/status` SSE
-- [ ] after scan completes, refresh the directory tree via HTMX
-- [ ] after transcoding completes to local/shared output, offer to re-index the affected library via `POST /api/scan?library_id=N` (library-scoped rescan)
-- [ ] write tests for scan trigger and status endpoint
-- [ ] run tests - must pass before next task
+- [x] add "Re-index" button to the UI (header or library selector area)
+- [x] implement scan trigger via HTMX POST to `/api/scan`
+- [x] show scan progress indicator (spinner/progress) connected to `/api/scan/status` SSE
+- [x] after scan completes, refresh the directory tree via HTMX
+- [x] after transcoding completes to local/shared output, offer to re-index the affected library via `POST /api/scan?library_id=N` (library-scoped rescan)
+- [x] write tests for scan trigger and status endpoint
+- [x] run tests - must pass before next task
 
 ### Task 11: Verify acceptance criteria
 - [ ] verify all requirements from Overview are implemented
