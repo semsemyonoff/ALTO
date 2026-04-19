@@ -180,22 +180,22 @@
 - [x] run tests - must pass before next task
 
 ### Task 9: Web UI - transcoding interface
-- [ ] add "Transcode" button to audio directory page
-- [ ] create transcoding modal/panel with HTMX:
+- [x] add "Transcode" button to audio directory page
+- [x] create transcoding modal/panel with HTMX:
   1. Codec selector (FLAC / Opus)
   2. Preset selector (changes based on codec, default preset pre-selected)
   3. "Custom" option revealing: bitrate/compression level, metadata flag (on), cover flag (on)
   4. Advanced section (collapsed by default) for additional ffmpeg params
   5. Output mode selector (Shared /out default, Local out, Replace with warning)
-- [ ] implement "Start" button that POSTs to `/api/transcode` via HTMX
-- [ ] create progress display component:
+- [x] implement "Start" button that POSTs to `/api/transcode` via HTMX
+- [x] create progress display component:
   - progress bar (overall)
   - current file name and per-file progress
   - collapsible full log viewer (default collapsed)
-- [ ] connect progress display to SSE endpoint via HTMX `hx-ext="sse"`
-- [ ] show replace mode warning dialog before starting
-- [ ] write tests for transcoding form rendering
-- [ ] run tests - must pass before next task
+- [x] connect progress display to SSE endpoint via HTMX `hx-ext="sse"`
+- [x] show replace mode warning dialog before starting
+- [x] write tests for transcoding form rendering
+- [x] run tests - must pass before next task
 
 ### Task 10: Re-indexing UI and scan integration
 - [ ] add "Re-index" button to the UI (header or library selector area)
