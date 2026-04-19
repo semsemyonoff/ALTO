@@ -357,6 +357,7 @@ func TestTranscodeReplaceSuccess(t *testing.T) {
 		ffmpegRun: func(ctx context.Context, args []string, progressFn func(string)) error {
 			return os.WriteFile(args[len(args)-1], []byte("transcoded"), 0o644)
 		},
+		probeFile: func(ctx context.Context, path string) error { return nil },
 		diskAvail: func(string) (uint64, error) { return 1 << 30, nil },
 	}
 
@@ -413,6 +414,7 @@ func TestTranscodeReplaceRollback(t *testing.T) {
 			}
 			return os.WriteFile(args[len(args)-1], []byte("transcoded"), 0o644)
 		},
+		probeFile: func(ctx context.Context, path string) error { return nil },
 		diskAvail: func(string) (uint64, error) { return 1 << 30, nil },
 	}
 
@@ -481,6 +483,7 @@ func TestTranscodeReplaceContextCancel(t *testing.T) {
 			cancel()
 			return ctx.Err()
 		},
+		probeFile: func(ctx context.Context, path string) error { return nil },
 		diskAvail: func(string) (uint64, error) { return 1 << 30, nil },
 	}
 
@@ -669,6 +672,7 @@ func TestDiskSpaceWarning(t *testing.T) {
 		ffmpegRun: func(ctx context.Context, args []string, progressFn func(string)) error {
 			return os.WriteFile(args[len(args)-1], []byte("transcoded"), 0o644)
 		},
+		probeFile: func(ctx context.Context, path string) error { return nil },
 		diskAvail: func(string) (uint64, error) {
 			diskCallCount++
 			return 1, nil // almost no space

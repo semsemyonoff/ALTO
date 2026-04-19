@@ -304,7 +304,7 @@ func (db *DB) GetDirectoryChildren(libraryID int64, parentPath string) ([]Direct
 	}
 
 	// Filter to only immediate children (no "/" after the prefix).
-	children := all[:0]
+	children := make([]Directory, 0, len(all))
 	prefixLen := len(prefix)
 	for _, d := range all {
 		if len(d.Path) <= prefixLen {

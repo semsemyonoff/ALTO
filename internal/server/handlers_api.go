@@ -222,6 +222,12 @@ func (s *Server) handleScan(w http.ResponseWriter, r *http.Request) {
 	}
 
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				slog.Error("scan panicked", "panic", r)
+				s.scan.broadcast(ScanEvent{Type: "error", Message: "internal error"})
+			}
+		}()
 		s.scan.broadcast(ScanEvent{Type: "started"})
 		if err := s.scanner.ScanAll(context.Background(), libs); err != nil {
 			slog.Error("scan failed", "err", err)

@@ -50,19 +50,32 @@ type FileInfo struct {
 
 // Engine executes ffmpeg transcoding jobs.
 type Engine struct {
-	ffmpegBin string
+	ffmpegBin  string
+	ffprobeBin string
 	// ffmpegRun is replaceable in tests.
 	ffmpegRun func(ctx context.Context, args []string, progressFn func(string)) error
+	// probeFile verifies a file is a valid audio file; replaceable in tests.
+	probeFile func(ctx context.Context, path string) error
 	// diskAvail returns available bytes at path; replaceable in tests.
 	diskAvail func(path string) (uint64, error)
 }
 
 // NewEngine creates an Engine that uses the system ffmpeg binary.
 func NewEngine() *Engine {
-	e := &Engine{ffmpegBin: "ffmpeg"}
+	e := &Engine{ffmpegBin: "ffmpeg", ffprobeBin: "ffprobe"}
 	e.ffmpegRun = e.execFfmpeg
+	e.probeFile = e.execFfprobe
 	e.diskAvail = defaultDiskAvail
 	return e
+}
+
+// execFfprobe runs ffprobe on path to verify it is a valid audio file.
+func (e *Engine) execFfprobe(ctx context.Context, path string) error {
+	cmd := exec.CommandContext(ctx, e.ffprobeBin, "-v", "quiet", "-i", path)
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("ffprobe verification failed for %q: %w", path, err)
+	}
+	return nil
 }
 
 func defaultDiskAvail(path string) (uint64, error) {
@@ -92,11 +105,21 @@ func (e *Engine) Transcode(ctx context.Context, job Job, progress chan<- Progres
 func calcOutputDir(job Job) (string, error) {
 	switch job.OutputMode {
 	case OutputShared:
+		if job.OutputDir == "" {
+			return "", fmt.Errorf("output dir not configured for shared mode")
+		}
 		rel, err := filepath.Rel(job.LibraryRoot, job.SourceDir)
 		if err != nil {
 			return "", fmt.Errorf("rel path from library root: %w", err)
 		}
-		return filepath.Join(job.OutputDir, job.LibraryName, rel), nil
+		out := filepath.Join(job.OutputDir, job.LibraryName, rel)
+		// Safety: ensure the computed path stays within job.OutputDir.
+		cleanBase := filepath.Clean(job.OutputDir)
+		cleanOut := filepath.Clean(out)
+		if cleanOut != cleanBase && !strings.HasPrefix(cleanOut, cleanBase+string(filepath.Separator)) {
+			return "", fmt.Errorf("computed output path escapes output dir")
+		}
+		return out, nil
 	case OutputLocal:
 		return filepath.Join(job.SourceDir, ".alto-out"), nil
 	default:
@@ -205,6 +228,12 @@ func (e *Engine) transcodeReplace(ctx context.Context, job Job, progress chan<- 
 		if err := e.ffmpegRun(ctx, args, makeProgressFn(fi, i, len(job.Files), progress)); err != nil {
 			rollback()
 			return fmt.Errorf("transcode %s: %w", fi.Name, err)
+		}
+
+		// Verify the transcoded output is a valid audio file before replacing the original.
+		if err := e.probeFile(ctx, tmpPath); err != nil {
+			rollback()
+			return fmt.Errorf("output verification failed for %s: %w", fi.Name, err)
 		}
 
 		// Backup original, then place transcoded file.

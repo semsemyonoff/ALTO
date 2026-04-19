@@ -6,10 +6,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"regexp"
 	"strconv"
 
 	"github.com/semsemyonoff/ALTO/internal/transcode"
 )
+
+// bitrateRe validates bitrate strings like "128k", "320k", "160000".
+var bitrateRe = regexp.MustCompile(`^[0-9]+k?$`)
 
 // transcodeRequest is the JSON body for POST /api/transcode.
 type transcodeRequest struct {
@@ -273,6 +277,11 @@ func resolvePreset(req transcodeRequest) (transcode.Preset, error) {
 		}
 	}
 
+	// If a preset name was given but didn't match any built-in preset, reject it.
+	if req.Preset != "" {
+		return transcode.Preset{}, fmt.Errorf("unknown preset %q", req.Preset)
+	}
+
 	// Build custom preset from codec + fields.
 	codec := transcode.Codec(req.Codec)
 	switch codec {
@@ -293,6 +302,9 @@ func resolvePreset(req transcodeRequest) (transcode.Preset, error) {
 		p.CompressionLevel = 10
 	}
 	if req.Bitrate != "" {
+		if !bitrateRe.MatchString(req.Bitrate) {
+			return transcode.Preset{}, fmt.Errorf("invalid bitrate %q; must be digits optionally followed by 'k'", req.Bitrate)
+		}
 		p.Bitrate = req.Bitrate
 	} else if codec == transcode.CodecOpus {
 		p.Bitrate = "160k"

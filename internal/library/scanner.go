@@ -107,10 +107,10 @@ func (s *Scanner) Scan(ctx context.Context, lib db.Library) error {
 			return filepath.SkipDir
 		}
 
-		// Skip if this directory matches the resolved ALTO_OUTPUT_DIR.
+		// Skip if this directory is the resolved ALTO_OUTPUT_DIR or any subdirectory of it.
 		if resolvedOut != "" {
 			resolved, rerr := filepath.EvalSymlinks(path)
-			if rerr == nil && resolved == resolvedOut {
+			if rerr == nil && (resolved == resolvedOut || strings.HasPrefix(resolved, resolvedOut+string(filepath.Separator))) {
 				return filepath.SkipDir
 			}
 		}

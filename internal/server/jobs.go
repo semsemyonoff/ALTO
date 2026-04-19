@@ -82,8 +82,6 @@ type jobState struct {
 
 	// done is closed after the engine exits and status is updated.
 	done chan struct{}
-
-	cancel context.CancelFunc
 }
 
 // subscribe creates a new SSE subscriber channel.
@@ -227,7 +225,6 @@ func runJob(js *jobState, jm *jobManager, engine TranscodeEngine, job transcode.
 		js.log.add(fmt.Sprintf("job %s started: %s -> %s/%s",
 			js.id, job.SourceDir, job.Preset.Codec, job.Preset.Name))
 		ctx, cancel := context.WithCancel(context.Background())
-		js.cancel = cancel
 		defer cancel()
 
 		err := engine.Transcode(ctx, job, js.progress)
