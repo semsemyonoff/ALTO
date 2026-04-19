@@ -144,7 +144,7 @@ func (db *DB) UpsertDirectory(libraryID int64, path, codecSummary string, hasCov
 	db.mu.Lock()
 	defer db.mu.Unlock()
 
-	res, err := db.sql.Exec(
+	_, err := db.sql.Exec(
 		`INSERT INTO directories(library_id, path, has_cover, cover_path, codec_summary) VALUES(?, ?, ?, ?, ?)
 		 ON CONFLICT(library_id, path) DO UPDATE SET
 		   has_cover=excluded.has_cover,
@@ -155,12 +155,9 @@ func (db *DB) UpsertDirectory(libraryID int64, path, codecSummary string, hasCov
 	if err != nil {
 		return 0, fmt.Errorf("upsert directory: %w", err)
 	}
-
-	id, err := res.LastInsertId()
-	if err != nil || id == 0 {
-		return db.directoryIDLocked(libraryID, path)
-	}
-	return id, nil
+	// Always SELECT after upsert: ON CONFLICT DO UPDATE does not reliably update
+	// last_insert_rowid across all SQLite driver versions.
+	return db.directoryIDLocked(libraryID, path)
 }
 
 func (db *DB) directoryIDLocked(libraryID int64, path string) (int64, error) {

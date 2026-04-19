@@ -77,21 +77,21 @@
 - [x] run tests - must pass before next task
 
 ### Task 3: Library scanner with ffprobe integration
-- [ ] create `internal/library/scanner.go` with `Scanner` struct and `Scan(ctx, libPath)` method
-- [ ] implement directory walking: identify audio directories (dirs containing audio files by extension: flac, opus, ogg, mp3, wav, aac, m4a, wma, alac, ape, wv); skip app-owned directories during scan — exclude `.alto-out/` (ALTO's local output dir name) and any dir matching `.alto-*` (temp, backup, cache); also exclude the resolved `ALTO_OUTPUT_DIR` path if it falls under any library root (prevents shared output from being re-indexed)
-- [ ] implement ffprobe wrapper (`internal/library/ffprobe.go`): extract codec, bitrate, duration, sample_rate, channels via `ffprobe -v quiet -print_format json -show_streams -show_format`
-- [ ] implement cover art detection: check for external files (cover.jpg/png, folder.jpg/png, front.jpg/png) and embedded art via ffprobe stream type `attached_pic`
-- [ ] implement embedded cover art extraction: when only embedded art exists, extract to app-managed cache dir (`$ALTO_CACHE_DIR/covers/<libraryID>/<dir-hash>.jpg`) via `ffmpeg -i input -an -vcodec mjpeg -frames:v 1 output.jpg`; store cache path in `directories.cover_path`; cache dir defaults to `./cache` and is separate from library mounts (works with read-only library mounts)
-- [ ] implement codec summary for directory (e.g., "FLAC" if all FLAC, "Mixed" if multiple codecs)
-- [ ] store scan results in DB via `internal/db` methods; after upserting current files, call `DeleteStaleFiles` and `DeleteStaleDirectories` to reconcile removed/renamed entries
-- [ ] support parallel scanning of multiple libraries via goroutines (each library scanned in its own goroutine, all DB writes go through the serialized writer)
-- [ ] log scan progress to stdout (slog)
-- [ ] write tests for scanner with mock ffprobe (interface-based)
-- [ ] write tests for ffprobe JSON parsing (various codec outputs)
-- [ ] write tests for audio file extension detection, external cover art detection, and embedded art extraction
-- [ ] write tests for stale directory/file reconciliation during rescan
-- [ ] write tests for scanner exclude rules: `.alto-out/`, `.alto-tmp-*`, `.alto-backup-*` dirs must be skipped; a legitimate user dir named `out/` must still be indexed; `ALTO_OUTPUT_DIR` nested under a library root must be skipped; audio files inside excluded dirs must not appear in index
-- [ ] run tests - must pass before next task
+- [x] create `internal/library/scanner.go` with `Scanner` struct and `Scan(ctx, libPath)` method
+- [x] implement directory walking: identify audio directories (dirs containing audio files by extension: flac, opus, ogg, mp3, wav, aac, m4a, wma, alac, ape, wv); skip app-owned directories during scan — exclude `.alto-out/` (ALTO's local output dir name) and any dir matching `.alto-*` (temp, backup, cache); also exclude the resolved `ALTO_OUTPUT_DIR` path if it falls under any library root (prevents shared output from being re-indexed)
+- [x] implement ffprobe wrapper (`internal/library/ffprobe.go`): extract codec, bitrate, duration, sample_rate, channels via `ffprobe -v quiet -print_format json -show_streams -show_format`
+- [x] implement cover art detection: check for external files (cover.jpg/png, folder.jpg/png, front.jpg/png) and embedded art via ffprobe stream type `attached_pic`
+- [x] implement embedded cover art extraction: when only embedded art exists, extract to app-managed cache dir (`$ALTO_CACHE_DIR/covers/<libraryID>/<dir-hash>.jpg`) via `ffmpeg -i input -an -vcodec mjpeg -frames:v 1 output.jpg`; store cache path in `directories.cover_path`; cache dir defaults to `./cache` and is separate from library mounts (works with read-only library mounts)
+- [x] implement codec summary for directory (e.g., "FLAC" if all FLAC, "Mixed" if multiple codecs)
+- [x] store scan results in DB via `internal/db` methods; after upserting current files, call `DeleteStaleFiles` and `DeleteStaleDirectories` to reconcile removed/renamed entries
+- [x] support parallel scanning of multiple libraries via goroutines (each library scanned in its own goroutine, all DB writes go through the serialized writer)
+- [x] log scan progress to stdout (slog)
+- [x] write tests for scanner with mock ffprobe (interface-based)
+- [x] write tests for ffprobe JSON parsing (various codec outputs)
+- [x] write tests for audio file extension detection, external cover art detection, and embedded art extraction
+- [x] write tests for stale directory/file reconciliation during rescan
+- [x] write tests for scanner exclude rules: `.alto-out/`, `.alto-tmp-*`, `.alto-backup-*` dirs must be skipped; a legitimate user dir named `out/` must still be indexed; `ALTO_OUTPUT_DIR` nested under a library root must be skipped; audio files inside excluded dirs must not appear in index
+- [x] run tests - must pass before next task
 
 ### Task 4: HTTP server and API endpoints
 - [ ] create `internal/server/server.go` with `Server` struct, router setup using `net/http` ServeMux
