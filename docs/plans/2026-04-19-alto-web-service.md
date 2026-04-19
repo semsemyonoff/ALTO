@@ -137,14 +137,14 @@
 - [x] run tests - must pass before next task
 
 ### Task 7: Transcoding engine with ffmpeg
-- [ ] create `internal/transcode/engine.go` with `Engine` struct and `Transcode(ctx, job)` method
-- [ ] define `Job` struct: source dir, target codec, preset/custom params, output mode, list of files
-- [ ] define preset configurations:
+- [x] create `internal/transcode/engine.go` with `Engine` struct and `Transcode(ctx, job)` method
+- [x] define `Job` struct: source dir, target codec, preset/custom params, output mode, list of files
+- [x] define preset configurations:
   - FLAC: Fast (compression 0, verify on), Balanced (compression 5, verify on), Max (compression 8, verify on)
   - Opus: Music Balanced (128k), Music High (160k, default), Archive Lossy (192k) - all with vbr on, application audio, compression_level 10
-- [ ] implement ffmpeg command builder for FLAC: `ffmpeg -i input -c:a flac -compression_level N [-map_metadata 0] [-c:v copy] output.flac`
-- [ ] implement ffmpeg command builder for Opus: `ffmpeg -i input -c:a libopus -b:a Nk -vbr on -compression_level 10 -application audio [-map_metadata 0] [-c:v copy] output.opus`
-- [ ] implement three output modes:
+- [x] implement ffmpeg command builder for FLAC: `ffmpeg -i input -c:a flac -compression_level N [-map_metadata 0] [-c:v copy] output.flac`
+- [x] implement ffmpeg command builder for Opus: `ffmpeg -i input -c:a libopus -b:a Nk -vbr on -compression_level 10 -application audio [-map_metadata 0] [-c:v copy] output.opus`
+- [x] implement three output modes:
   1. Shared /out: mirror directory structure under a library namespace — `<ALTO_OUTPUT_DIR>/<library-name>/<relative-path>/` — to prevent collisions when multiple libraries contain the same relative path; copy non-audio files after conversion
   2. Local out: create `.alto-out/` subdirectory in source audio directory (prefixed to avoid collision with user content and to match scanner exclusion rules)
   3. Replace: atomic per-file replacement with rollback semantics:
@@ -153,17 +153,17 @@
      - on success of all files: remove backup dir
      - on any failure (mid-job error, disk full, context cancel): stop processing, restore all already-replaced files from backup dir, remove temp dir, log what was restored
      - disk space pre-check: estimate output size from input duration * target bitrate, compare with available space via `syscall.Statfs`, warn if < 2x estimated size
-- [ ] validate all output paths against allowed roots using a destination-safe variant of safepath: instead of `EvalSymlinks` on the full (possibly non-existent) path, walk up to the nearest existing ancestor, resolve that, and verify the resolved ancestor is within a library root or output dir; then validate the remaining unresolved segments contain no `..` or symlink escapes
-- [ ] implement progress tracking: parse ffmpeg stderr for `time=` progress, calculate percentage from known duration
-- [ ] implement `Progress` channel/callback reporting: current file, file index, total files, percentage per file
-- [ ] log all ffmpeg output to stdout (slog)
-- [ ] write tests for ffmpeg command building (verify correct arguments for each preset and codec)
-- [ ] write tests for output path calculation (all three modes)
-- [ ] write tests for replace mode rollback: simulate mid-job failure, verify originals are restored from backup
-- [ ] write tests for replace mode disk space pre-check
-- [ ] write tests for progress parsing from ffmpeg stderr
-- [ ] write tests for non-audio file copying logic
-- [ ] run tests - must pass before next task
+- [x] validate all output paths against allowed roots using a destination-safe variant of safepath: instead of `EvalSymlinks` on the full (possibly non-existent) path, walk up to the nearest existing ancestor, resolve that, and verify the resolved ancestor is within a library root or output dir; then validate the remaining unresolved segments contain no `..` or symlink escapes
+- [x] implement progress tracking: parse ffmpeg stderr for `time=` progress, calculate percentage from known duration
+- [x] implement `Progress` channel/callback reporting: current file, file index, total files, percentage per file
+- [x] log all ffmpeg output to stdout (slog)
+- [x] write tests for ffmpeg command building (verify correct arguments for each preset and codec)
+- [x] write tests for output path calculation (all three modes)
+- [x] write tests for replace mode rollback: simulate mid-job failure, verify originals are restored from backup
+- [x] write tests for replace mode disk space pre-check
+- [x] write tests for progress parsing from ffmpeg stderr
+- [x] write tests for non-audio file copying logic
+- [x] run tests - must pass before next task
 
 ### Task 8: Transcoding API and real-time progress
 - [ ] add API endpoints:
