@@ -130,7 +130,7 @@ func (s *Scanner) Scan(ctx context.Context, lib db.Library) error {
 
 		var audioFiles []string
 		for _, e := range entries {
-			if e.IsDir() {
+			if e.IsDir() || e.Type()&fs.ModeSymlink != 0 {
 				continue
 			}
 			ext := strings.ToLower(filepath.Ext(e.Name()))

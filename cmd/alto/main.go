@@ -1,13 +1,16 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"regexp"
 	"strings"
+	"syscall"
 
 	"github.com/semsemyonoff/ALTO/internal/db"
 	"github.com/semsemyonoff/ALTO/internal/library"
@@ -180,7 +183,20 @@ func main() {
 	addr := ":" + cfg.Port
 	slog.Info("starting ALTO", "addr", addr, "libraries", len(cfg.Libraries))
 
-	if err := http.ListenAndServe(addr, mux); err != nil {
+	httpSrv := &http.Server{Addr: addr, Handler: mux}
+
+	// Handle SIGINT/SIGTERM: stop accepting new connections, cancel in-flight jobs.
+	sigCtx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	go func() {
+		<-sigCtx.Done()
+		stop()
+		slog.Info("shutting down")
+		srv.Shutdown()
+		_ = httpSrv.Shutdown(context.Background())
+	}()
+
+	if err := httpSrv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		slog.Error("server error", "err", err)
 		os.Exit(1)
 	}

@@ -210,7 +210,9 @@ func (jm *jobManager) get(id string) (*jobState, bool) {
 }
 
 // runJob starts the goroutines that drive a job and fan out progress events.
-func runJob(js *jobState, jm *jobManager, engine TranscodeEngine, job transcode.Job) {
+// parentCtx is cancelled when the server shuts down, which propagates cancellation
+// to in-flight transcode jobs to prevent library corruption in replace mode.
+func runJob(js *jobState, jm *jobManager, engine TranscodeEngine, job transcode.Job, parentCtx context.Context) {
 	// Fanout goroutine: reads from the engine's progress channel, broadcasts to
 	// SSE subscribers, and appends summary lines to the log ring buffer.
 	go func() {
@@ -227,7 +229,7 @@ func runJob(js *jobState, jm *jobManager, engine TranscodeEngine, job transcode.
 	go func() {
 		js.log.add(fmt.Sprintf("job %s started: %s -> %s/%s",
 			js.id, job.SourceDir, job.Preset.Codec, job.Preset.Name))
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(parentCtx)
 		defer cancel()
 
 		err := engine.Transcode(ctx, job, js.progress)

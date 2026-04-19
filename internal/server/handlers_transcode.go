@@ -153,7 +153,7 @@ func (s *Server) handleTranscodeStart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	runJob(js, s.jobs, s.engine, job)
+	runJob(js, s.jobs, s.engine, job, s.shutdownCtx)
 
 	writeJSON(w, http.StatusAccepted, map[string]string{"job_id": id})
 }

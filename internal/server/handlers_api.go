@@ -230,15 +230,15 @@ func (s *Server) handleScan(w http.ResponseWriter, r *http.Request) {
 // GET /api/scan/status
 // Sends an "idle" event immediately if no scan is running.
 func (s *Server) handleScanStatus(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "text/event-stream")
-	w.Header().Set("Cache-Control", "no-cache")
-	w.Header().Set("Connection", "keep-alive")
-
 	flusher, ok := w.(http.Flusher)
 	if !ok {
 		http.Error(w, "streaming unsupported", http.StatusInternalServerError)
 		return
 	}
+
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
 
 	ch, running := s.scan.subscribe()
 	if !running {

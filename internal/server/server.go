@@ -116,15 +116,17 @@ func (ss *scanState) broadcast(e ScanEvent) {
 
 // Server is the ALTO HTTP server.
 type Server struct {
-	db        *db.DB
-	scanner   LibraryScanner
-	engine    TranscodeEngine
-	cfg       Config
-	mux       *http.ServeMux
-	scan      scanState
-	tmpl      templateEngine
-	jobs      *jobManager
-	staticDir string
+	db             *db.DB
+	scanner        LibraryScanner
+	engine         TranscodeEngine
+	cfg            Config
+	mux            *http.ServeMux
+	scan           scanState
+	tmpl           templateEngine
+	jobs           *jobManager
+	staticDir      string
+	shutdownCtx    context.Context
+	shutdownCancel context.CancelFunc
 }
 
 // New creates a new Server and registers all routes.
@@ -142,18 +144,26 @@ func NewWithEngine(database *db.DB, scanner LibraryScanner, engine TranscodeEngi
 	if staticDir == "" {
 		staticDir = "web/static"
 	}
+	shutdownCtx, shutdownCancel := context.WithCancel(context.Background())
 	s := &Server{
-		db:        database,
-		scanner:   scanner,
-		engine:    engine,
-		cfg:       cfg,
-		mux:       http.NewServeMux(),
-		tmpl:      templateEngine{dir: tmplDir},
-		jobs:      newJobManager(),
-		staticDir: staticDir,
+		db:             database,
+		scanner:        scanner,
+		engine:         engine,
+		cfg:            cfg,
+		mux:            http.NewServeMux(),
+		tmpl:           templateEngine{dir: tmplDir},
+		jobs:           newJobManager(),
+		staticDir:      staticDir,
+		shutdownCtx:    shutdownCtx,
+		shutdownCancel: shutdownCancel,
 	}
 	s.registerRoutes()
 	return s
+}
+
+// Shutdown cancels all in-flight transcode jobs and releases server resources.
+func (s *Server) Shutdown() {
+	s.shutdownCancel()
 }
 
 // ServeHTTP implements http.Handler.
@@ -186,7 +196,7 @@ func (s *Server) launchScan(libs []db.Library) {
 			}
 		}()
 		s.scan.broadcast(ScanEvent{Type: "started"})
-		if err := s.scanner.ScanAll(context.Background(), libs); err != nil {
+		if err := s.scanner.ScanAll(s.shutdownCtx, libs); err != nil {
 			slog.Error("scan failed", "err", err)
 			s.scan.broadcast(ScanEvent{Type: "error", Message: err.Error()})
 		} else {
