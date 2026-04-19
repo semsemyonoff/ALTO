@@ -84,20 +84,29 @@ func TestScannerBasic(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(dirs) != 1 {
-		t.Fatalf("expected 1 audio directory, got %d: %v", len(dirs), dirs)
+	if len(dirs) != 2 {
+		t.Fatalf("expected album plus parent directory, got %d: %v", len(dirs), dirs)
 	}
-	if dirs[0].Path != "Artist/Album" {
-		t.Errorf("path: got %q want %q", dirs[0].Path, "Artist/Album")
+	if dirs[0].Path != "Artist" {
+		t.Errorf("first path: got %q want %q", dirs[0].Path, "Artist")
 	}
-	if !dirs[0].HasCover {
+	if dirs[1].Path != "Artist/Album" {
+		t.Errorf("second path: got %q want %q", dirs[1].Path, "Artist/Album")
+	}
+	if !dirs[1].HasCover {
 		t.Error("expected HasCover true for directory with cover.jpg")
 	}
-	if dirs[0].CodecSummary != "FLAC" {
-		t.Errorf("CodecSummary: got %q want %q", dirs[0].CodecSummary, "FLAC")
+	if dirs[1].CodecSummary != "FLAC" {
+		t.Errorf("CodecSummary: got %q want %q", dirs[1].CodecSummary, "FLAC")
+	}
+	if dirs[0].HasCover {
+		t.Error("parent directory should not inherit album cover")
+	}
+	if dirs[0].CodecSummary != "" {
+		t.Errorf("parent directory CodecSummary: got %q want empty", dirs[0].CodecSummary)
 	}
 
-	tracks, err := database.GetDirectoryFiles(dirs[0].ID)
+	tracks, err := database.GetDirectoryFiles(dirs[1].ID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -106,14 +115,72 @@ func TestScannerBasic(t *testing.T) {
 	}
 }
 
+func TestScannerIndexesAncestorsForNestedAudioDirectories(t *testing.T) {
+	root := makeTestTree(t, map[string][]string{
+		"Artists/Live/Bootlegs/1994": {"01.flac"},
+	})
+
+	database := openTestDB(t)
+	libID, err := database.UpsertLibrary("test", root)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	s := NewScanner(database, &mockProber{}, ScanConfig{CacheDir: t.TempDir()})
+	lib := db.Library{ID: libID, Name: "test", Path: root}
+	if err := s.Scan(context.Background(), lib); err != nil {
+		t.Fatalf("Scan: %v", err)
+	}
+
+	dirs, err := database.GetDirectoryTree(libID)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	got := make([]string, len(dirs))
+	for i, dir := range dirs {
+		got[i] = dir.Path
+	}
+	want := []string{
+		"Artists",
+		"Artists/Live",
+		"Artists/Live/Bootlegs",
+		"Artists/Live/Bootlegs/1994",
+	}
+	if len(got) != len(want) {
+		t.Fatalf("expected %d indexed directories, got %d: %v", len(want), len(got), got)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("path[%d]: got %q want %q (all: %v)", i, got[i], want[i], got)
+		}
+	}
+
+	children, err := database.GetDirectoryChildren(libID, "")
+	if err != nil {
+		t.Fatalf("GetDirectoryChildren(root): %v", err)
+	}
+	if len(children) != 1 || children[0].Path != "Artists" {
+		t.Fatalf("expected top-level Artists node, got %v", childPaths(children))
+	}
+
+	children, err = database.GetDirectoryChildren(libID, "Artists/Live")
+	if err != nil {
+		t.Fatalf("GetDirectoryChildren(Artists/Live): %v", err)
+	}
+	if len(children) != 1 || children[0].Path != "Artists/Live/Bootlegs" {
+		t.Fatalf("expected Bootlegs child, got %v", childPaths(children))
+	}
+}
+
 // TestScannerExcludesAltoDirs verifies that .alto-* directories are skipped.
 func TestScannerExcludesAltoDirs(t *testing.T) {
 	root := makeTestTree(t, map[string][]string{
-		"Music":                    {"song.flac"},
-		"Music/.alto-out":          {"output.flac"}, // must be excluded
-		"Music/.alto-tmp-abc123":   {"temp.flac"},   // must be excluded
-		"Music/.alto-backup-abc":   {"backup.flac"}, // must be excluded
-		"out":                      {"user.flac"},   // regular user dir — must be included
+		"Music":                  {"song.flac"},
+		"Music/.alto-out":        {"output.flac"}, // must be excluded
+		"Music/.alto-tmp-abc123": {"temp.flac"},   // must be excluded
+		"Music/.alto-backup-abc": {"backup.flac"}, // must be excluded
+		"out":                    {"user.flac"},   // regular user dir — must be included
 	})
 
 	database := openTestDB(t)
@@ -155,8 +222,8 @@ func TestScannerExcludesAltoDirs(t *testing.T) {
 // TestScannerExcludesOutputDir verifies that ALTO_OUTPUT_DIR nested in a library is excluded.
 func TestScannerExcludesOutputDir(t *testing.T) {
 	root := makeTestTree(t, map[string][]string{
-		"Music":       {"song.flac"},
-		"transcoded":  {"output.flac"}, // this is ALTO_OUTPUT_DIR
+		"Music":      {"song.flac"},
+		"transcoded": {"output.flac"}, // this is ALTO_OUTPUT_DIR
 	})
 
 	outputDir := filepath.Join(root, "transcoded")
@@ -248,6 +315,62 @@ func TestScannerStaleReconciliation(t *testing.T) {
 	}
 	if tracks[0].Filename != "a.flac" {
 		t.Errorf("expected a.flac, got %q", tracks[0].Filename)
+	}
+}
+
+func TestScannerClearsTracksWhenDirectoryBecomesParentOnly(t *testing.T) {
+	root := makeTestTree(t, map[string][]string{
+		"Artist": {"song.flac"},
+	})
+
+	database := openTestDB(t)
+	libID, err := database.UpsertLibrary("test", root)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	s := NewScanner(database, &mockProber{}, ScanConfig{CacheDir: t.TempDir()})
+	lib := db.Library{ID: libID, Name: "test", Path: root}
+	if err := s.Scan(context.Background(), lib); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := os.Remove(filepath.Join(root, "Artist", "song.flac")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(root, "Artist", "Album"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "Artist", "Album", "song.flac"), []byte("fake"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := s.Scan(context.Background(), lib); err != nil {
+		t.Fatal(err)
+	}
+
+	dir, err := database.GetDirectoryByPath(libID, "Artist")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if dir == nil {
+		t.Fatal("expected Artist parent directory to stay indexed")
+	}
+
+	tracks, err := database.GetDirectoryFiles(dir.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(tracks) != 0 {
+		t.Fatalf("expected Artist to have no direct tracks after becoming parent-only, got %d", len(tracks))
+	}
+
+	children, err := database.GetDirectoryChildren(libID, "Artist")
+	if err != nil {
+		t.Fatalf("GetDirectoryChildren(Artist): %v", err)
+	}
+	if len(children) != 1 || children[0].Path != "Artist/Album" {
+		t.Fatalf("expected nested album child, got %v", childPaths(children))
 	}
 }
 
@@ -429,9 +552,9 @@ func TestScannerAudioExtensions(t *testing.T) {
 // TestScannerNonAudioDirNotIndexed verifies that dirs without audio files are not indexed.
 func TestScannerNonAudioDirNotIndexed(t *testing.T) {
 	root := makeTestTree(t, map[string][]string{
-		"Docs":    {"readme.txt", "notes.pdf"},
-		"Images":  {"photo.jpg"},
-		"Music":   {"song.flac"},
+		"Docs":   {"readme.txt", "notes.pdf"},
+		"Images": {"photo.jpg"},
+		"Music":  {"song.flac"},
 	})
 
 	database := openTestDB(t)
@@ -506,6 +629,14 @@ func TestBuildCodecSummary(t *testing.T) {
 			}
 		})
 	}
+}
+
+func childPaths(dirs []db.Directory) []string {
+	out := make([]string, len(dirs))
+	for i, d := range dirs {
+		out[i] = d.Path
+	}
+	return out
 }
 
 // TestIsAltoDir verifies the .alto-* pattern matching.

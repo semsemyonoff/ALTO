@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 
@@ -88,7 +89,7 @@ func (s *Scanner) Scan(ctx context.Context, lib db.Library) error {
 
 	resolvedOut, _ := filepath.EvalSymlinks(s.cfg.OutputDir)
 
-	var scannedPaths []string
+	var audioPaths []string
 	dirToFiles := make(map[string][]string)
 	dirInfos := make(map[string]*dirScanResult)
 
@@ -155,7 +156,7 @@ func (s *Scanner) Scan(ctx context.Context, lib db.Library) error {
 			rel = ""
 		}
 
-		scannedPaths = append(scannedPaths, rel)
+		audioPaths = append(audioPaths, rel)
 		dirToFiles[rel] = audioFiles
 		dirInfos[rel] = &dirScanResult{absPath: path, entries: entries}
 
@@ -165,8 +166,45 @@ func (s *Scanner) Scan(ctx context.Context, lib db.Library) error {
 		return fmt.Errorf("walk %q: %w", lib.Path, err)
 	}
 
+	indexedSet := make(map[string]struct{}, len(audioPaths))
+	for _, rel := range audioPaths {
+		indexedSet[rel] = struct{}{}
+		for _, parent := range ancestorPaths(rel) {
+			indexedSet[parent] = struct{}{}
+		}
+	}
+
+	indexedPaths := make([]string, 0, len(indexedSet))
+	parentOnlyPaths := make([]string, 0, len(indexedSet))
+	for rel := range indexedSet {
+		indexedPaths = append(indexedPaths, rel)
+		if _, ok := dirInfos[rel]; !ok {
+			parentOnlyPaths = append(parentOnlyPaths, rel)
+		}
+	}
+	sort.Strings(indexedPaths)
+	sort.Strings(parentOnlyPaths)
+	sort.Strings(audioPaths)
+
+	// Upsert parent directories that only exist to keep nested audio branches visible.
+	for _, rel := range parentOnlyPaths {
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+
+		dirID, upsertErr := s.db.UpsertDirectory(lib.ID, rel, "", false, "")
+		if upsertErr != nil {
+			slog.Warn("upsert parent directory", "path", rel, "err", upsertErr)
+			continue
+		}
+
+		if deleteErr := s.db.DeleteStaleFiles(dirID, nil); deleteErr != nil {
+			slog.Warn("delete stale files", "dir", rel, "err", deleteErr)
+		}
+	}
+
 	// Upsert each discovered audio directory.
-	for _, rel := range scannedPaths {
+	for _, rel := range audioPaths {
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
@@ -196,11 +234,11 @@ func (s *Scanner) Scan(ctx context.Context, lib db.Library) error {
 	}
 
 	// Remove directories no longer on disk.
-	if deleteErr := s.db.DeleteStaleDirectories(lib.ID, scannedPaths); deleteErr != nil {
+	if deleteErr := s.db.DeleteStaleDirectories(lib.ID, indexedPaths); deleteErr != nil {
 		slog.Warn("delete stale directories", "library", lib.Name, "err", deleteErr)
 	}
 
-	slog.Info("scan complete", "library", lib.Name, "directories", len(scannedPaths))
+	slog.Info("scan complete", "library", lib.Name, "directories", len(indexedPaths), "audio_directories", len(audioPaths))
 	return nil
 }
 
@@ -208,6 +246,24 @@ func (s *Scanner) Scan(ctx context.Context, lib db.Library) error {
 type dirScanResult struct {
 	absPath string
 	entries []fs.DirEntry
+}
+
+// ancestorPaths returns the slash-normalized ancestors of rel, excluding rel itself.
+func ancestorPaths(rel string) []string {
+	if rel == "" {
+		return nil
+	}
+
+	parts := strings.Split(rel, "/")
+	if len(parts) <= 1 {
+		return nil
+	}
+
+	ancestors := make([]string, 0, len(parts)-1)
+	for i := 1; i < len(parts); i++ {
+		ancestors = append(ancestors, strings.Join(parts[:i], "/"))
+	}
+	return ancestors
 }
 
 // isAltoDir returns true if the directory name is an app-owned dir.
