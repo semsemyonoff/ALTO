@@ -58,23 +58,23 @@
 - [x] run `go test ./...` and `golangci-lint run` - must pass before next task
 
 ### Task 2: SQLite database and schema
-- [ ] add `modernc.org/sqlite` dependency
-- [ ] create `internal/db/db.go` with DB struct, `Open(path)` / `Close()`, migration on startup
-- [ ] define schema with relational constraints:
+- [x] add `modernc.org/sqlite` dependency
+- [x] create `internal/db/db.go` with DB struct, `Open(path)` / `Close()`, migration on startup
+- [x] define schema with relational constraints:
   - `libraries` (id INTEGER PK, name TEXT UNIQUE NOT NULL, path TEXT UNIQUE NOT NULL) — names validated on startup: must be non-empty, unique, and contain only `[a-zA-Z0-9_-]` (used as filesystem slug in shared /out layout)
   - `directories` (id INTEGER PK, library_id INTEGER NOT NULL REFERENCES libraries(id) ON DELETE CASCADE, path TEXT NOT NULL, has_cover BOOLEAN, cover_path TEXT, codec_summary TEXT, UNIQUE(library_id, path))
   - `tracks` (id INTEGER PK, directory_id INTEGER NOT NULL REFERENCES directories(id) ON DELETE CASCADE, filename TEXT NOT NULL, codec TEXT, bitrate INTEGER, duration REAL, sample_rate INTEGER, channels INTEGER, size INTEGER, UNIQUE(directory_id, filename))
   - enable `PRAGMA foreign_keys = ON` on every connection
-- [ ] configure SQLite with WAL mode and busy timeout (5s) on Open to support concurrent reads during scan writes
-- [ ] implement single-writer strategy: all write operations serialized through a `sync.Mutex` in the DB struct
-- [ ] implement `UpsertLibrary`, `UpsertDirectory`, `UpsertTrack` methods
-- [ ] implement `DeleteStaleFiles(directoryID, currentFilenames)` and `DeleteStaleDirectories(libraryID, currentPaths)` — removes DB rows for files/directories no longer present on disk
-- [ ] implement query methods: `GetLibraries`, `GetDirectoryTree(libraryID)`, `GetDirectoryChildren(parentPath)` (for lazy tree expansion), `GetDirectoryFiles(dirPath)`, `GetDirectoryByPath(path)`
-- [ ] write tests for all DB operations using in-memory SQLite
-- [ ] write tests for schema migration (fresh DB + idempotent re-run)
-- [ ] write tests for stale directory/file deletion (rename, remove scenarios)
-- [ ] write tests for concurrent read/write access (goroutine safety)
-- [ ] run tests - must pass before next task
+- [x] configure SQLite with WAL mode and busy timeout (5s) on Open to support concurrent reads during scan writes
+- [x] implement single-writer strategy: all write operations serialized through a `sync.Mutex` in the DB struct
+- [x] implement `UpsertLibrary`, `UpsertDirectory`, `UpsertTrack` methods
+- [x] implement `DeleteStaleFiles(directoryID, currentFilenames)` and `DeleteStaleDirectories(libraryID, currentPaths)` — removes DB rows for files/directories no longer present on disk
+- [x] implement query methods: `GetLibraries`, `GetDirectoryTree(libraryID)`, `GetDirectoryChildren(parentPath)` (for lazy tree expansion), `GetDirectoryFiles(dirPath)`, `GetDirectoryByPath(path)`
+- [x] write tests for all DB operations using in-memory SQLite
+- [x] write tests for schema migration (fresh DB + idempotent re-run)
+- [x] write tests for stale directory/file deletion (rename, remove scenarios)
+- [x] write tests for concurrent read/write access (goroutine safety)
+- [x] run tests - must pass before next task
 
 ### Task 3: Library scanner with ffprobe integration
 - [ ] create `internal/library/scanner.go` with `Scanner` struct and `Scan(ctx, libPath)` method
