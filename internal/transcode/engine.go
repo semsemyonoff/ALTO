@@ -340,6 +340,7 @@ func BuildFLACArgs(ffmpegBin, input, output string, preset Preset) []string {
 	if preset.CopyCover {
 		args = append(args, "-c:v", "copy")
 	}
+	args = append(args, preset.ExtraArgs...)
 	args = append(args, "-y", output)
 	return args
 }
@@ -359,6 +360,7 @@ func BuildOpusArgs(ffmpegBin, input, output string, preset Preset) []string {
 	}
 	// Opus (Ogg) containers do not support embedded video streams; cover art
 	// cannot be copied via -c:v copy for this codec.
+	args = append(args, preset.ExtraArgs...)
 	args = append(args, "-y", output)
 	return args
 }

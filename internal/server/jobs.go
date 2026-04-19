@@ -189,6 +189,9 @@ func (jm *jobManager) complete(id string, err error) {
 	jm.mu.Unlock()
 	if ok {
 		close(js.done)
+		// Close any subscribers that slipped in after the fanout goroutine ran closeSubs
+		// but before done was closed (TOCTOU window in subscribe()).
+		js.closeSubs()
 		// Evict the job from the map after 30 minutes so log queries still work briefly.
 		time.AfterFunc(30*time.Minute, func() {
 			jm.mu.Lock()

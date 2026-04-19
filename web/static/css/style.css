@@ -554,6 +554,29 @@ a:hover { color: var(--teal); text-decoration: underline; }
   color: var(--muted);
 }
 
+/* ── Advanced collapsible section ────────────────────────────── */
+
+.form-advanced {
+  margin-top: var(--space-sm);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0 var(--space-sm);
+}
+
+.form-advanced-summary {
+  cursor: pointer;
+  padding: var(--space-xs) 0;
+  font-size: 0.85em;
+  color: var(--muted);
+  user-select: none;
+}
+
+.form-advanced[open] .form-advanced-summary {
+  padding-bottom: var(--space-xs);
+  border-bottom: 1px solid var(--border);
+  margin-bottom: var(--space-sm);
+}
+
 /* ── Checkbox group ───────────────────────────────────────────── */
 
 .checkbox-group {

@@ -28,6 +28,7 @@ type Preset struct {
 	Bitrate          string // Opus only, e.g. "128k"
 	CopyMetadata     bool
 	CopyCover        bool
+	ExtraArgs        []string // additional ffmpeg arguments inserted before output
 }
 
 // FLAC presets — all have verify semantics and copy metadata/cover by default.

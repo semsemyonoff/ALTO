@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"regexp"
 	"strconv"
+	"strings"
 
 	"github.com/semsemyonoff/ALTO/internal/transcode"
 )
@@ -26,6 +27,9 @@ type transcodeRequest struct {
 	Bitrate          string `json:"bitrate,omitempty"`
 	CopyMetadata     *bool  `json:"copy_metadata,omitempty"`
 	CopyCover        *bool  `json:"copy_cover,omitempty"`
+	// ExtraArgs is a space-separated string of additional ffmpeg arguments appended
+	// before the output file. Available for all presets via the Advanced UI section.
+	ExtraArgs string `json:"extra_args,omitempty"`
 }
 
 // handleTranscodeStart handles POST /api/transcode.
@@ -269,16 +273,22 @@ func calcOverallPercent(p transcode.ProgressReport) float64 {
 // resolvePreset builds a Preset from a transcodeRequest.
 // If req.Preset names a built-in preset, it is returned directly.
 // Otherwise, custom fields are used to construct a preset.
+// In either case, req.ExtraArgs (space-separated) is appended to the preset.
 func resolvePreset(req transcodeRequest) (transcode.Preset, error) {
+	// Parse extra args first so we can validate before doing anything else.
+	extraArgs := strings.Fields(req.ExtraArgs)
+
 	// Try named preset first.
 	for _, p := range transcode.DefaultPresets() {
 		if p.Name == req.Preset {
+			p.ExtraArgs = extraArgs
 			return p, nil
 		}
 	}
 
 	// If a preset name was given but didn't match any built-in preset, reject it.
-	if req.Preset != "" {
+	// "custom" is the sentinel value the UI sends when the user picks custom params.
+	if req.Preset != "" && req.Preset != "custom" {
 		return transcode.Preset{}, fmt.Errorf("unknown preset %q", req.Preset)
 	}
 
@@ -295,6 +305,7 @@ func resolvePreset(req transcodeRequest) (transcode.Preset, error) {
 		Codec:        codec,
 		CopyMetadata: true,
 		CopyCover:    true,
+		ExtraArgs:    extraArgs,
 	}
 	if req.CompressionLevel != nil {
 		p.CompressionLevel = *req.CompressionLevel
