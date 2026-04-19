@@ -7,11 +7,17 @@ import (
 	"sync"
 
 	"github.com/semsemyonoff/ALTO/internal/db"
+	"github.com/semsemyonoff/ALTO/internal/transcode"
 )
 
 // LibraryScanner is the interface for scanning libraries into the database.
 type LibraryScanner interface {
 	ScanAll(ctx context.Context, libraries []db.Library) error
+}
+
+// TranscodeEngine is the interface for running transcoding jobs.
+type TranscodeEngine interface {
+	Transcode(ctx context.Context, job transcode.Job, progress chan<- transcode.ProgressReport) error
 }
 
 // LibraryConfig holds runtime configuration for a single library.
@@ -100,16 +106,23 @@ func (ss *scanState) broadcast(e ScanEvent) {
 
 // Server is the ALTO HTTP server.
 type Server struct {
-	db      *db.DB
-	scanner LibraryScanner
-	cfg     Config
-	mux     *http.ServeMux
-	scan    scanState
-	tmpl    templateEngine
+	db       *db.DB
+	scanner  LibraryScanner
+	engine   TranscodeEngine
+	cfg      Config
+	mux      *http.ServeMux
+	scan     scanState
+	tmpl     templateEngine
+	jobs     *jobManager
 }
 
 // New creates a new Server and registers all routes.
 func New(database *db.DB, scanner LibraryScanner, cfg Config) *Server {
+	return NewWithEngine(database, scanner, nil, cfg)
+}
+
+// NewWithEngine creates a new Server with an optional TranscodeEngine.
+func NewWithEngine(database *db.DB, scanner LibraryScanner, engine TranscodeEngine, cfg Config) *Server {
 	tmplDir := cfg.TemplateDir
 	if tmplDir == "" {
 		tmplDir = "web/templates"
@@ -117,9 +130,11 @@ func New(database *db.DB, scanner LibraryScanner, cfg Config) *Server {
 	s := &Server{
 		db:      database,
 		scanner: scanner,
+		engine:  engine,
 		cfg:     cfg,
 		mux:     http.NewServeMux(),
 		tmpl:    templateEngine{dir: tmplDir},
+		jobs:    newJobManager(),
 	}
 	s.registerRoutes()
 	return s
@@ -140,6 +155,9 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("POST /api/scan", s.handleScan)
 	s.mux.HandleFunc("GET /api/scan/status", s.handleScanStatus)
 	s.mux.HandleFunc("GET /api/cover", s.handleCover)
+	s.mux.HandleFunc("POST /api/transcode", s.handleTranscodeStart)
+	s.mux.HandleFunc("GET /api/transcode/{jobID}/progress", s.handleTranscodeProgress)
+	s.mux.HandleFunc("GET /api/transcode/{jobID}/log", s.handleTranscodeLog)
 
 	// Static file serving (no method restriction to support GET + HEAD).
 	s.mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("web/static"))))

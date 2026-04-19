@@ -166,18 +166,18 @@
 - [x] run tests - must pass before next task
 
 ### Task 8: Transcoding API and real-time progress
-- [ ] add API endpoints:
+- [x] add API endpoints:
   - `POST /api/transcode` - start transcoding job (codec, preset/custom params, output mode, directory path); source directory path canonicalized and validated against library roots via read-path safepath (reject with 403 if outside roots)
   - `GET /api/transcode/{jobID}/progress` - SSE stream for real-time progress
   - `GET /api/transcode/{jobID}/log` - tail log endpoint (returns last N lines from ring buffer; documented as a rolling tail, not a full history)
-- [ ] implement job management: track active jobs, prevent duplicate jobs on same directory
-- [ ] implement SSE progress streaming: current file name, file progress %, overall progress %, status
-- [ ] implement log storage: in-memory ring buffer (configurable size, default 1000 lines) for the tail API; full log always written to container stdout via slog regardless of buffer eviction
-- [ ] write tests for transcode API (start, progress polling, completion)
-- [ ] write tests for transcode source path validation (traversal, outside library roots -> 403, `.alto-*` source paths -> 403)
-- [ ] write tests for SSE event formatting
-- [ ] write tests for job deduplication
-- [ ] run tests - must pass before next task
+- [x] implement job management: track active jobs, prevent duplicate jobs on same directory
+- [x] implement SSE progress streaming: current file name, file progress %, overall progress %, status
+- [x] implement log storage: in-memory ring buffer (configurable size, default 1000 lines) for the tail API; full log always written to container stdout via slog regardless of buffer eviction
+- [x] write tests for transcode API (start, progress polling, completion)
+- [x] write tests for transcode source path validation (traversal, outside library roots -> 403, `.alto-*` source paths -> 403)
+- [x] write tests for SSE event formatting
+- [x] write tests for job deduplication
+- [x] run tests - must pass before next task
 
 ### Task 9: Web UI - transcoding interface
 - [ ] add "Transcode" button to audio directory page
