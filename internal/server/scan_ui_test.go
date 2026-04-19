@@ -152,7 +152,7 @@ func TestScanUI_ReindexOfferNotRenderedWithoutTracks(t *testing.T) {
 
 	absPath := filepath.Join(libDir, "EmptyAlbum")
 	mkdirAll(t, absPath)
-	database.UpsertDirectory(libID, "EmptyAlbum", "", false, "") //nolint:errcheck
+	database.UpsertDirectoryWithAudioFlag(libID, "EmptyAlbum", "", false, "", true) //nolint:errcheck
 
 	req := httptest.NewRequest(http.MethodGet, apiURL("/dir", map[string]string{"path": absPath}), nil)
 	w := httptest.NewRecorder()

@@ -115,9 +115,11 @@ func (s *Server) handleTreeChildren(w http.ResponseWriter, r *http.Request) {
 		libCfg = LibraryConfig{ID: libraryID}
 	}
 
-	nodes := make([]TreeNodeData, len(children))
-	for i, c := range children {
-		nodes[i] = buildTreeNodeData(libCfg, c)
+	nodes, err := s.buildTreeNodes(libCfg, children)
+	if err != nil {
+		slog.Error("handleTreeChildren: buildTreeNodes", "err", err)
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
 	}
 
 	html, err := renderTreeNodes(nodes)
@@ -158,6 +160,10 @@ func (s *Server) handleDir(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if dir == nil {
+		http.Error(w, "directory not found", http.StatusNotFound)
+		return
+	}
+	if !dir.IsAudio {
 		http.Error(w, "directory not found", http.StatusNotFound)
 		return
 	}
@@ -329,4 +335,3 @@ func (s *Server) handleCover(w http.ResponseWriter, r *http.Request) {
 
 	http.ServeContent(w, r, dir.CoverPath, fi.ModTime(), f)
 }
-

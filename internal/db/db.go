@@ -12,8 +12,8 @@ import (
 
 // DB wraps a SQLite database with a write mutex for serialized writes.
 type DB struct {
-	sql  *sql.DB
-	mu   sync.Mutex
+	sql *sql.DB
+	mu  sync.Mutex
 }
 
 // Library represents a named, mounted music library stored in the DB.
@@ -31,6 +31,8 @@ type Directory struct {
 	HasCover     bool
 	CoverPath    string
 	CodecSummary string
+	IsAudio      bool
+	HasChildren  bool
 }
 
 // Track represents an audio file within a directory.
@@ -62,6 +64,7 @@ CREATE TABLE IF NOT EXISTS directories (
 	has_cover     BOOLEAN NOT NULL DEFAULT 0,
 	cover_path    TEXT NOT NULL DEFAULT '',
 	codec_summary TEXT NOT NULL DEFAULT '',
+	is_audio      BOOLEAN NOT NULL DEFAULT 0,
 	UNIQUE(library_id, path)
 );
 
@@ -120,7 +123,55 @@ func (db *DB) Close() error {
 func (db *DB) migrate() error {
 	db.mu.Lock()
 	defer db.mu.Unlock()
-	_, err := db.sql.Exec(schema)
+	if _, err := db.sql.Exec(schema); err != nil {
+		return err
+	}
+	if err := db.ensureColumnLocked(
+		"directories",
+		"is_audio",
+		`ALTER TABLE directories ADD COLUMN is_audio BOOLEAN NOT NULL DEFAULT 0`,
+	); err != nil {
+		return err
+	}
+	_, err := db.sql.Exec(`
+		UPDATE directories
+		SET is_audio = CASE
+			WHEN codec_summary <> '' OR has_cover = 1 OR EXISTS (
+				SELECT 1 FROM tracks WHERE tracks.directory_id = directories.id
+			) THEN 1
+			ELSE 0
+		END
+	`)
+	return err
+}
+
+func (db *DB) ensureColumnLocked(table, column, alter string) error {
+	rows, err := db.sql.Query(`PRAGMA table_info(` + table + `)`)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = rows.Close() }()
+
+	for rows.Next() {
+		var (
+			cid        int
+			name       string
+			colType    string
+			notNull    int
+			defaultV   any
+			primaryKey int
+		)
+		if err := rows.Scan(&cid, &name, &colType, &notNull, &defaultV, &primaryKey); err != nil {
+			return err
+		}
+		if name == column {
+			return nil
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	_, err = db.sql.Exec(alter)
 	return err
 }
 
@@ -157,16 +208,23 @@ func (db *DB) libraryIDByNameLocked(name string) (int64, error) {
 
 // UpsertDirectory inserts or updates a directory record and returns its ID.
 func (db *DB) UpsertDirectory(libraryID int64, path, codecSummary string, hasCover bool, coverPath string) (int64, error) {
+	return db.UpsertDirectoryWithAudioFlag(libraryID, path, codecSummary, hasCover, coverPath, codecSummary != "" || hasCover)
+}
+
+// UpsertDirectoryWithAudioFlag inserts or updates a directory record and stores
+// whether the directory is an actual audio directory or only a structural parent.
+func (db *DB) UpsertDirectoryWithAudioFlag(libraryID int64, path, codecSummary string, hasCover bool, coverPath string, isAudio bool) (int64, error) {
 	db.mu.Lock()
 	defer db.mu.Unlock()
 
 	_, err := db.sql.Exec(
-		`INSERT INTO directories(library_id, path, has_cover, cover_path, codec_summary) VALUES(?, ?, ?, ?, ?)
+		`INSERT INTO directories(library_id, path, has_cover, cover_path, codec_summary, is_audio) VALUES(?, ?, ?, ?, ?, ?)
 		 ON CONFLICT(library_id, path) DO UPDATE SET
 		   has_cover=excluded.has_cover,
 		   cover_path=excluded.cover_path,
-		   codec_summary=excluded.codec_summary`,
-		libraryID, path, hasCover, coverPath, codecSummary,
+		   codec_summary=excluded.codec_summary,
+		   is_audio=excluded.is_audio`,
+		libraryID, path, hasCover, coverPath, codecSummary, isAudio,
 	)
 	if err != nil {
 		return 0, fmt.Errorf("upsert directory: %w", err)
@@ -328,7 +386,7 @@ func (db *DB) GetLibraries() ([]Library, error) {
 // GetDirectoryTree returns all directories for a library.
 func (db *DB) GetDirectoryTree(libraryID int64) ([]Directory, error) {
 	rows, err := db.sql.Query(
-		`SELECT id, library_id, path, has_cover, cover_path, codec_summary
+		`SELECT id, library_id, path, has_cover, cover_path, codec_summary, is_audio
 		 FROM directories WHERE library_id=? ORDER BY path`,
 		libraryID,
 	)
@@ -352,7 +410,7 @@ func (db *DB) GetDirectoryChildren(libraryID int64, parentPath string) ([]Direct
 	// Escape LIKE wildcards so directory paths containing % or _ match literally.
 	escaped := strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`).Replace(prefix)
 	rows, err := db.sql.Query(
-		`SELECT id, library_id, path, has_cover, cover_path, codec_summary
+		`SELECT id, library_id, path, has_cover, cover_path, codec_summary, is_audio
 		 FROM directories WHERE library_id=? AND path LIKE ? ESCAPE '\' ORDER BY path`,
 		libraryID, escaped+"%",
 	)
@@ -393,10 +451,10 @@ func (db *DB) GetDirectoryChildren(libraryID int64, parentPath string) ([]Direct
 func (db *DB) GetDirectoryByPath(libraryID int64, path string) (*Directory, error) {
 	var d Directory
 	err := db.sql.QueryRow(
-		`SELECT id, library_id, path, has_cover, cover_path, codec_summary
+		`SELECT id, library_id, path, has_cover, cover_path, codec_summary, is_audio
 		 FROM directories WHERE library_id=? AND path=?`,
 		libraryID, path,
-	).Scan(&d.ID, &d.LibraryID, &d.Path, &d.HasCover, &d.CoverPath, &d.CodecSummary)
+	).Scan(&d.ID, &d.LibraryID, &d.Path, &d.HasCover, &d.CoverPath, &d.CodecSummary, &d.IsAudio)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
@@ -429,11 +487,49 @@ func (db *DB) GetDirectoryFiles(directoryID int64) ([]Track, error) {
 	return tracks, rows.Err()
 }
 
+// HasDirectChildDirectory reports whether parentPath has any indexed direct child
+// directories within the library.
+func (db *DB) HasDirectChildDirectory(libraryID int64, parentPath string) (bool, error) {
+	if parentPath == "" {
+		var exists bool
+		err := db.sql.QueryRow(
+			`SELECT EXISTS(
+				SELECT 1
+				FROM directories
+				WHERE library_id=? AND instr(path, '/')=0
+			)`,
+			libraryID,
+		).Scan(&exists)
+		return exists, err
+	}
+
+	prefix := parentPath
+	if prefix[len(prefix)-1] != '/' {
+		prefix += "/"
+	}
+	escaped := strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`).Replace(prefix)
+
+	var exists bool
+	err := db.sql.QueryRow(
+		`SELECT EXISTS(
+			SELECT 1
+			FROM directories
+			WHERE library_id=?
+			  AND path LIKE ? ESCAPE '\'
+			  AND instr(substr(path, ?), '/')=0
+		)`,
+		libraryID,
+		escaped+"%",
+		len(prefix)+1,
+	).Scan(&exists)
+	return exists, err
+}
+
 func scanDirectories(rows *sql.Rows) ([]Directory, error) {
 	var dirs []Directory
 	for rows.Next() {
 		var d Directory
-		if err := rows.Scan(&d.ID, &d.LibraryID, &d.Path, &d.HasCover, &d.CoverPath, &d.CodecSummary); err != nil {
+		if err := rows.Scan(&d.ID, &d.LibraryID, &d.Path, &d.HasCover, &d.CoverPath, &d.CodecSummary, &d.IsAudio); err != nil {
 			return nil, err
 		}
 		dirs = append(dirs, d)

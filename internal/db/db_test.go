@@ -103,6 +103,9 @@ func TestUpsertDirectory(t *testing.T) {
 	if d.HasCover {
 		t.Fatal("expected HasCover=false after update")
 	}
+	if !d.IsAudio {
+		t.Fatal("expected IsAudio=true for audio directory")
+	}
 }
 
 // TestGetDirectoryByPath_NotFound returns nil for missing paths.
@@ -313,6 +316,37 @@ func TestGetDirectoryChildren(t *testing.T) {
 	// "Artists" and "Compilations" are root-level (no "/" in path).
 	if len(rootChildren) != 2 {
 		t.Fatalf("expected 2 root children, got %d: %v", len(rootChildren), childPaths(rootChildren))
+	}
+}
+
+func TestHasDirectChildDirectory(t *testing.T) {
+	db := openMem(t)
+	libID, _ := db.UpsertLibrary("lib", "/lib")
+
+	if _, err := db.UpsertDirectoryWithAudioFlag(libID, "Artists", "", false, "", false); err != nil {
+		t.Fatalf("upsert parent-only dir: %v", err)
+	}
+	if _, err := db.UpsertDirectoryWithAudioFlag(libID, "Artists/Album", "FLAC", false, "", true); err != nil {
+		t.Fatalf("upsert child dir: %v", err)
+	}
+	if _, err := db.UpsertDirectoryWithAudioFlag(libID, "Leaf", "FLAC", false, "", true); err != nil {
+		t.Fatalf("upsert leaf dir: %v", err)
+	}
+
+	hasChildren, err := db.HasDirectChildDirectory(libID, "Artists")
+	if err != nil {
+		t.Fatalf("HasDirectChildDirectory(Artists): %v", err)
+	}
+	if !hasChildren {
+		t.Fatal("expected Artists to have direct children")
+	}
+
+	hasChildren, err = db.HasDirectChildDirectory(libID, "Leaf")
+	if err != nil {
+		t.Fatalf("HasDirectChildDirectory(Leaf): %v", err)
+	}
+	if hasChildren {
+		t.Fatal("expected Leaf to have no direct children")
 	}
 }
 

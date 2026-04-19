@@ -155,6 +155,25 @@ func TestHandleDirPage_NoTracks(t *testing.T) {
 	}
 }
 
+func TestHandleDirPage_NonAudioDirectoryRejected(t *testing.T) {
+	srv, database, libDir := newTestServerWithDirTemplate(t)
+	libID := srv.cfg.Libraries[0].ID
+
+	absPath := filepath.Join(libDir, "Artists")
+	mkdirAll(t, absPath)
+	if _, err := database.UpsertDirectoryWithAudioFlag(libID, "Artists", "", false, "", false); err != nil {
+		t.Fatalf("UpsertDirectoryWithAudioFlag: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, apiURL("/dir", map[string]string{"path": absPath}), nil)
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("want 404, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
 func TestHandleDirPage_WithTracks(t *testing.T) {
 	srv, database, libDir := newTestServerWithDirTemplate(t)
 	libID := srv.cfg.Libraries[0].ID
@@ -497,6 +516,7 @@ func TestTreeNodeTemplate_LabelLoadsContent(t *testing.T) {
 		AbsPath:     "/music/Jazz",
 		AbsEncoded:  "%2Fmusic%2FJazz",
 		Basename:    "Jazz",
+		IsAudioDir:  true,
 	}
 
 	html, err := renderTreeNodes([]TreeNodeData{nd})
@@ -518,7 +538,7 @@ func TestTreeNodeTemplate_LabelLoadsContent(t *testing.T) {
 		t.Errorf("tree label should use hx-select=#dir-content; got:\n%s", body)
 	}
 	// Row should exclude label clicks from children trigger
-	if !strings.Contains(body, "tree-label") {
+	if !strings.Contains(body, "tree-label-link") {
 		t.Errorf("tree node should contain tree-label element; got:\n%s", body)
 	}
 }
@@ -531,6 +551,8 @@ func TestTreeNodeTemplate_RowExcludesLabelFromExpand(t *testing.T) {
 		AbsPath:     "/music/Rock",
 		AbsEncoded:  "%2Fmusic%2FRock",
 		Basename:    "Rock",
+		IsAudioDir:  true,
+		HasChildren: true,
 	}
 
 	html, err := renderTreeNodes([]TreeNodeData{nd})
@@ -539,8 +561,35 @@ func TestTreeNodeTemplate_RowExcludesLabelFromExpand(t *testing.T) {
 	}
 	body := string(html)
 
-	// Row trigger should exclude clicks on .tree-label
-	if !strings.Contains(body, ".tree-label") {
-		t.Errorf("row hx-trigger should exclude tree-label clicks; got:\n%s", body)
+	// Row trigger should exclude clicks on the audio label link only.
+	if !strings.Contains(body, ".tree-label-link") {
+		t.Errorf("row hx-trigger should exclude tree-label-link clicks; got:\n%s", body)
+	}
+}
+
+func TestTreeNodeTemplate_NonAudioLabelStillExpandsBranch(t *testing.T) {
+	nd := TreeNodeData{
+		LibraryID:   1,
+		Path:        "Artists",
+		AbsPath:     "/music/Artists",
+		Basename:    "Artists",
+		IsAudioDir:  false,
+		HasChildren: true,
+	}
+
+	html, err := renderTreeNodes([]TreeNodeData{nd})
+	if err != nil {
+		t.Fatalf("renderTreeNodes: %v", err)
+	}
+	body := string(html)
+
+	if !strings.Contains(body, "tree-label tree-label-disabled") {
+		t.Errorf("non-audio branch should render a disabled label; got:\n%s", body)
+	}
+	if strings.Contains(body, `<span class="tree-label tree-label-link"`) {
+		t.Errorf("non-audio branch should not render a clickable label; got:\n%s", body)
+	}
+	if !strings.Contains(body, ".tree-label-link") {
+		t.Errorf("row expand trigger should ignore only clickable audio labels; got:\n%s", body)
 	}
 }

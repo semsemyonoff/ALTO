@@ -193,7 +193,7 @@ func (s *Scanner) Scan(ctx context.Context, lib db.Library) error {
 			return ctx.Err()
 		}
 
-		dirID, upsertErr := s.db.UpsertDirectory(lib.ID, rel, "", false, "")
+		dirID, upsertErr := s.db.UpsertDirectoryWithAudioFlag(lib.ID, rel, "", false, "", false)
 		if upsertErr != nil {
 			slog.Warn("upsert parent directory", "path", rel, "err", upsertErr)
 			continue
@@ -216,7 +216,7 @@ func (s *Scanner) Scan(ctx context.Context, lib db.Library) error {
 		tracks := s.probeFiles(ctx, info.absPath, audioFiles)
 		codecSummary := buildCodecSummary(tracks)
 
-		dirID, upsertErr := s.db.UpsertDirectory(lib.ID, rel, codecSummary, hasCover, coverPath)
+		dirID, upsertErr := s.db.UpsertDirectoryWithAudioFlag(lib.ID, rel, codecSummary, hasCover, coverPath, true)
 		if upsertErr != nil {
 			slog.Warn("upsert directory", "path", rel, "err", upsertErr)
 			continue

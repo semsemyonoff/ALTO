@@ -68,6 +68,20 @@ a:hover { color: var(--teal); text-decoration: underline; }
   width: auto;
 }
 
+.app-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  color: inherit;
+  text-decoration: none;
+}
+
+.app-brand:hover {
+  color: inherit;
+  text-decoration: none;
+}
+
 .app-title {
   font-size: 18px;
   font-weight: 700;
@@ -173,12 +187,13 @@ a:hover { color: var(--teal); text-decoration: underline; }
   align-items: center;
   gap: 6px;
   padding: 5px 12px;
-  cursor: pointer;
+  cursor: default;
   border-radius: 4px;
   margin: 0 4px;
   transition: background 0.1s;
   user-select: none;
 }
+.tree-node-row.expandable { cursor: pointer; }
 .tree-node-row:hover { background: var(--bg3); }
 .tree-node-row.active {
   background: rgba(58, 212, 196, 0.12);
@@ -210,6 +225,11 @@ a:hover { color: var(--teal); text-decoration: underline; }
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.tree-label-disabled {
+  color: var(--muted);
+  cursor: default;
 }
 
 .tree-actions {

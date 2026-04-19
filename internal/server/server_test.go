@@ -369,6 +369,25 @@ func TestHandleDir_NotInDB(t *testing.T) {
 	}
 }
 
+func TestHandleDir_NonAudioDirectoryRejected(t *testing.T) {
+	srv, database, libDir := newTestServer(t)
+	libID := srv.cfg.Libraries[0].ID
+
+	absPath := filepath.Join(libDir, "Artists")
+	mkdirAll(t, absPath)
+	if _, err := database.UpsertDirectoryWithAudioFlag(libID, "Artists", "", false, "", false); err != nil {
+		t.Fatalf("UpsertDirectoryWithAudioFlag: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, apiURL("/api/dir", map[string]string{"path": absPath}), nil)
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("want 404, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
 // --- POST /api/scan ---
 
 func TestHandleScan_Success(t *testing.T) {
@@ -819,6 +838,8 @@ func TestTreeNodeTemplate_BasicRender(t *testing.T) {
 		AbsPath:      "/music/Jazz/Miles Davis",
 		AbsEncoded:   "%2Fmusic%2FJazz%2FMiles+Davis",
 		Basename:     "Miles Davis",
+		IsAudioDir:   true,
+		HasChildren:  true,
 		HasCover:     false,
 		CodecSummary: "FLAC",
 		CodecClass:   "codec-flac",
@@ -858,6 +879,7 @@ func TestTreeNodeTemplate_WithCover(t *testing.T) {
 		AbsPath:      "/music/Classical",
 		AbsEncoded:   "%2Fmusic%2FClassical",
 		Basename:     "Classical",
+		IsAudioDir:   true,
 		HasCover:     true,
 		CodecSummary: "FLAC",
 		CodecClass:   "codec-flac",
@@ -877,10 +899,11 @@ func TestTreeNodeTemplate_WithCover(t *testing.T) {
 
 func TestTreeNodeTemplate_NoCoverNoBadge(t *testing.T) {
 	nd := TreeNodeData{
-		LibraryID: 1,
-		Path:      "Rock",
-		Basename:  "Rock",
-		HasCover:  false,
+		LibraryID:  1,
+		Path:       "Rock",
+		Basename:   "Rock",
+		HasCover:   false,
+		IsAudioDir: true,
 	}
 
 	html, err := renderTreeNodes([]TreeNodeData{nd})
@@ -901,9 +924,9 @@ func TestTreeNodeTemplate_NoCoverNoBadge(t *testing.T) {
 
 func TestTreeNodeTemplate_MultipleNodes(t *testing.T) {
 	nodes := []TreeNodeData{
-		{LibraryID: 1, Path: "Jazz", Basename: "Jazz", CodecSummary: "FLAC", CodecClass: "codec-flac"},
-		{LibraryID: 1, Path: "Rock", Basename: "Rock", CodecSummary: "MP3", CodecClass: "codec-mp3"},
-		{LibraryID: 1, Path: "Electronic", Basename: "Electronic", CodecSummary: "Opus", CodecClass: "codec-opus"},
+		{LibraryID: 1, Path: "Jazz", Basename: "Jazz", IsAudioDir: true, CodecSummary: "FLAC", CodecClass: "codec-flac"},
+		{LibraryID: 1, Path: "Rock", Basename: "Rock", IsAudioDir: true, CodecSummary: "MP3", CodecClass: "codec-mp3"},
+		{LibraryID: 1, Path: "Electronic", Basename: "Electronic", IsAudioDir: true, CodecSummary: "Opus", CodecClass: "codec-opus"},
 	}
 
 	html, err := renderTreeNodes(nodes)
@@ -949,6 +972,8 @@ func TestBuildTreeNodeData(t *testing.T) {
 		Path:         "Jazz/Miles Davis",
 		HasCover:     true,
 		CodecSummary: "FLAC",
+		IsAudio:      true,
+		HasChildren:  true,
 	}
 
 	nd := buildTreeNodeData(lib, dir)
@@ -968,8 +993,68 @@ func TestBuildTreeNodeData(t *testing.T) {
 	if nd.HasCover != true {
 		t.Error("HasCover should be true")
 	}
+	if !nd.IsAudioDir {
+		t.Error("IsAudioDir should be true")
+	}
+	if !nd.HasChildren {
+		t.Error("HasChildren should be true")
+	}
 	if nd.CodecClass != "codec-flac" {
 		t.Errorf("CodecClass want 'codec-flac', got %q", nd.CodecClass)
+	}
+}
+
+func TestTreeNodeTemplate_LeafAudioNodeHasNoExpandArrow(t *testing.T) {
+	nd := TreeNodeData{
+		LibraryID:   1,
+		Path:        "Jazz/Kind of Blue",
+		AbsPath:     "/music/Jazz/Kind of Blue",
+		Basename:    "Kind of Blue",
+		IsAudioDir:  true,
+		HasChildren: false,
+	}
+
+	html, err := renderTreeNodes([]TreeNodeData{nd})
+	if err != nil {
+		t.Fatalf("renderTreeNodes: %v", err)
+	}
+	body := string(html)
+
+	if strings.Contains(body, `<span class="tree-toggle">▶</span>`) {
+		t.Errorf("leaf audio node should not render expand arrow; got:\n%s", body)
+	}
+	if !strings.Contains(body, "tree-toggle-placeholder") {
+		t.Errorf("leaf audio node should render toggle placeholder; got:\n%s", body)
+	}
+	if strings.Contains(body, `hx-get="/api/tree/1/children?parent=`) {
+		t.Errorf("leaf audio node should not request children; got:\n%s", body)
+	}
+}
+
+func TestTreeNodeTemplate_NonAudioNodeHasNoOpenLink(t *testing.T) {
+	nd := TreeNodeData{
+		LibraryID:   1,
+		Path:        "Jazz",
+		AbsPath:     "/music/Jazz",
+		Basename:    "Jazz",
+		IsAudioDir:  false,
+		HasChildren: true,
+	}
+
+	html, err := renderTreeNodes([]TreeNodeData{nd})
+	if err != nil {
+		t.Fatalf("renderTreeNodes: %v", err)
+	}
+	body := string(html)
+
+	if strings.Contains(body, `hx-get="/dir?path=`) {
+		t.Errorf("non-audio node should not open a directory page; got:\n%s", body)
+	}
+	if strings.Contains(body, "tree-open-link") {
+		t.Errorf("non-audio node should not render open link; got:\n%s", body)
+	}
+	if !strings.Contains(body, `<span class="tree-toggle">▶</span>`) {
+		t.Errorf("non-audio branch should still render expand arrow; got:\n%s", body)
 	}
 }
 

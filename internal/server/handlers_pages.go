@@ -68,6 +68,8 @@ type TreeNodeData struct {
 	AbsPath      string // absolute filesystem path
 	AbsEncoded   string // URL-encoded absolute path
 	Basename     string // last path segment for display (e.g. "Miles Davis")
+	IsAudioDir   bool
+	HasChildren  bool
 	HasCover     bool
 	CodecSummary string
 	CodecClass   string // CSS class for the codec badge
@@ -102,6 +104,8 @@ func buildTreeNodeData(lib LibraryConfig, dir db.Directory) TreeNodeData {
 		AbsPath:      absPath,
 		AbsEncoded:   url.QueryEscape(absPath),
 		Basename:     filepath.Base(dir.Path),
+		IsAudioDir:   dir.IsAudio,
+		HasChildren:  dir.HasChildren,
 		HasCover:     dir.HasCover,
 		CodecSummary: dir.CodecSummary,
 		CodecClass:   codecClass(dir.CodecSummary),
@@ -118,30 +122,32 @@ func buildTreeNodeData(lib LibraryConfig, dir db.Directory) TreeNodeData {
 //   - Clicking anywhere else on the row (toggle, icon, codec badge):
 //     expands/collapses children and loads child nodes into .tree-children.
 var treeNodeTmpl = template.Must(template.New("tree_node").Parse(`<div class="tree-node" data-path="{{.Path}}">
-  <div class="tree-node-row"
-       hx-get="/api/tree/{{.LibraryID}}/children?parent={{.Path | urlquery}}"
+  <div class="tree-node-row{{if .HasChildren}} expandable{{end}}"
+       {{if .HasChildren}}hx-get="/api/tree/{{.LibraryID}}/children?parent={{.Path | urlquery}}"
        hx-target="next .tree-children"
        hx-swap="innerHTML"
-       hx-trigger="click[!event.target.closest('.tree-label,.tree-actions')]"
-       onclick="if(!event.target.closest('.tree-label,.tree-actions'))this.classList.toggle('expanded')"
+       hx-trigger="click[!event.target.closest('.tree-label-link,.tree-actions')]"
+       onclick="if(!event.target.closest('.tree-label-link,.tree-actions'))this.classList.toggle('expanded')"{{end}}
        title="{{.Path}}">
-    <span class="tree-toggle">▶</span>
+    {{if .HasChildren}}<span class="tree-toggle">▶</span>{{else}}<span class="tree-toggle-placeholder"></span>{{end}}
     <span class="tree-icon">{{if .HasCover}}🎵{{else}}📁{{end}}</span>
-    <span class="tree-label"
+    {{if .IsAudioDir}}<span class="tree-label tree-label-link"
           hx-get="/dir?path={{.AbsPath | urlquery}}"
           hx-target="#content-area"
           hx-select="#dir-content"
           hx-swap="innerHTML"
           hx-push-url="true"
-          onclick="event.stopPropagation(); document.querySelectorAll('.tree-node-row').forEach(function(el){el.classList.remove('active')}); this.closest('.tree-node-row').classList.add('active')">{{.Basename}}</span>
+          onclick="event.stopPropagation(); document.querySelectorAll('.tree-node-row').forEach(function(el){el.classList.remove('active')}); this.closest('.tree-node-row').classList.add('active')">{{.Basename}}</span>{{else}}<span class="tree-label tree-label-disabled">{{.Basename}}</span>{{end}}
     {{if .CodecSummary}}<span class="codec-badge {{.CodecClass}}">{{.CodecSummary}}</span>{{end}}
     <span class="tree-actions">
+      {{if .IsAudioDir}}
       <a class="tree-open-link"
          href="/dir?path={{.AbsPath | urlquery}}"
          target="_blank"
          rel="noopener"
          onclick="event.stopPropagation()"
          title="Open in new tab">↗</a>
+      {{end}}
     </span>
   </div>
   <div class="tree-children"></div>
@@ -158,6 +164,19 @@ func renderTreeNodes(nodes []TreeNodeData) (template.HTML, error) {
 		}
 	}
 	return template.HTML(buf.String()), nil
+}
+
+func (s *Server) buildTreeNodes(lib LibraryConfig, dirs []db.Directory) ([]TreeNodeData, error) {
+	nodes := make([]TreeNodeData, len(dirs))
+	for i := range dirs {
+		hasChildren, err := s.db.HasDirectChildDirectory(dirs[i].LibraryID, dirs[i].Path)
+		if err != nil {
+			return nil, err
+		}
+		dirs[i].HasChildren = hasChildren
+		nodes[i] = buildTreeNodeData(lib, dirs[i])
+	}
+	return nodes, nil
 }
 
 // findLibConfigByID returns the LibraryConfig matching id, or zero value + false.
@@ -327,9 +346,10 @@ func (s *Server) buildAppShellData(selectedID int64) (appShellData, error) {
 		return data, nil
 	}
 
-	nodes := make([]TreeNodeData, len(dirs))
-	for i, d := range dirs {
-		nodes[i] = buildTreeNodeData(libCfg, d)
+	nodes, err := s.buildTreeNodes(libCfg, dirs)
+	if err != nil {
+		slog.Error("buildAppShellData: buildTreeNodes", "library_id", data.SelectedID, "err", err)
+		return data, nil
 	}
 
 	rendered, err := renderTreeNodes(nodes)
@@ -398,6 +418,10 @@ func (s *Server) handleDirPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if dir == nil {
+		http.Error(w, "directory not found", http.StatusNotFound)
+		return
+	}
+	if !dir.IsAudio {
 		http.Error(w, "directory not found", http.StatusNotFound)
 		return
 	}

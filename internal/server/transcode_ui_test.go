@@ -175,7 +175,7 @@ func TestTranscodeForm_NotRenderedWithoutTracks(t *testing.T) {
 
 	absPath := filepath.Join(libDir, "EmptyDir")
 	mkdirAll(t, absPath)
-	database.UpsertDirectory(libID, "EmptyDir", "", false, "") //nolint:errcheck
+	database.UpsertDirectoryWithAudioFlag(libID, "EmptyDir", "", false, "", true) //nolint:errcheck
 
 	req := httptest.NewRequest(http.MethodGet, apiURL("/dir", map[string]string{"path": absPath}), nil)
 	w := httptest.NewRecorder()
