@@ -471,8 +471,8 @@ func TestSSEEventFormat(t *testing.T) {
 	var events []string
 	for scanner.Scan() {
 		line := scanner.Text()
-		if strings.HasPrefix(line, "event: ") {
-			events = append(events, strings.TrimPrefix(line, "event: "))
+		if after, ok := strings.CutPrefix(line, "event: "); ok {
+			events = append(events, after)
 		}
 	}
 	if len(events) == 0 {

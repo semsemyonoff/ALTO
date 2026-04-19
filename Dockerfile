@@ -14,8 +14,10 @@ FROM alpine:3.21
 
 RUN apk add --no-cache ffmpeg
 
-COPY --from=builder /alto /usr/local/bin/alto
+WORKDIR /app
+COPY --from=builder /alto /app/alto
+COPY --from=builder /build/web /app/web
 
 EXPOSE 8080
 
-ENTRYPOINT ["/usr/local/bin/alto"]
+ENTRYPOINT ["/app/alto"]

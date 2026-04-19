@@ -111,7 +111,7 @@ func parseFFProbeOutput(data []byte) (*TrackInfo, error) {
 	if raw.Format.BitRate != "" {
 		br, err := strconv.ParseInt(raw.Format.BitRate, 10, 64)
 		if err == nil {
-			info.Bitrate = br / 1000 // convert bps to kbps
+			info.Bitrate = br
 		}
 	}
 

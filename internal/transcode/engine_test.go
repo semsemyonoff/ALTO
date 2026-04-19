@@ -69,7 +69,7 @@ func TestBuildFLACArgs(t *testing.T) {
 			preset: FLACFast,
 			wantArgs: []string{
 				"ffmpeg", "-i", in,
-				"-c:a", "flac", "-compression_level", "0",
+				"-c:a", "flac", "-compression_level", "0", "-verify",
 				"-map_metadata", "0", "-c:v", "copy",
 				"-y", out,
 			},
@@ -79,7 +79,7 @@ func TestBuildFLACArgs(t *testing.T) {
 			preset: FLACBalanced,
 			wantArgs: []string{
 				"ffmpeg", "-i", in,
-				"-c:a", "flac", "-compression_level", "5",
+				"-c:a", "flac", "-compression_level", "5", "-verify",
 				"-map_metadata", "0", "-c:v", "copy",
 				"-y", out,
 			},
@@ -89,7 +89,7 @@ func TestBuildFLACArgs(t *testing.T) {
 			preset: FLACMax,
 			wantArgs: []string{
 				"ffmpeg", "-i", in,
-				"-c:a", "flac", "-compression_level", "8",
+				"-c:a", "flac", "-compression_level", "8", "-verify",
 				"-map_metadata", "0", "-c:v", "copy",
 				"-y", out,
 			},
@@ -99,7 +99,7 @@ func TestBuildFLACArgs(t *testing.T) {
 			preset: Preset{Codec: CodecFLAC, CompressionLevel: 5},
 			wantArgs: []string{
 				"ffmpeg", "-i", in,
-				"-c:a", "flac", "-compression_level", "5",
+				"-c:a", "flac", "-compression_level", "5", "-verify",
 				"-y", out,
 			},
 		},

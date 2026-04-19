@@ -3,6 +3,7 @@ package library
 import (
 	"context"
 	"crypto/sha256"
+	"errors"
 	"fmt"
 	"io/fs"
 	"log/slog"
@@ -78,12 +79,7 @@ func (s *Scanner) ScanAll(ctx context.Context, libraries []db.Library) error {
 
 	wg.Wait()
 
-	for _, e := range errs {
-		if e != nil {
-			return e
-		}
-	}
-	return nil
+	return errors.Join(errs...)
 }
 
 // Scan walks a single library directory, extracts metadata, and syncs the DB.

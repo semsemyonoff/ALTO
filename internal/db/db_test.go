@@ -95,6 +95,7 @@ func TestUpsertDirectory(t *testing.T) {
 	}
 	if d == nil {
 		t.Fatal("expected directory, got nil")
+		return
 	}
 	if d.CodecSummary != "Mixed" {
 		t.Fatalf("expected Mixed, got %q", d.CodecSummary)

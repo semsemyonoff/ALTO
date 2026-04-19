@@ -3,6 +3,7 @@ package db
 import (
 	"database/sql"
 	"fmt"
+	"strings"
 	"sync"
 
 	_ "modernc.org/sqlite"
@@ -285,10 +286,12 @@ func (db *DB) GetDirectoryChildren(libraryID int64, parentPath string) ([]Direct
 		prefix += "/"
 	}
 
+	// Escape LIKE wildcards so directory paths containing % or _ match literally.
+	escaped := strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`).Replace(prefix)
 	rows, err := db.sql.Query(
 		`SELECT id, library_id, path, has_cover, cover_path, codec_summary
-		 FROM directories WHERE library_id=? AND path LIKE ? ORDER BY path`,
-		libraryID, prefix+"%",
+		 FROM directories WHERE library_id=? AND path LIKE ? ESCAPE '\' ORDER BY path`,
+		libraryID, escaped+"%",
 	)
 	if err != nil {
 		return nil, err

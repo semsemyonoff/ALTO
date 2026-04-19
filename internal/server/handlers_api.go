@@ -216,8 +216,7 @@ func (s *Server) handleScan(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if len(libs) == 0 {
-		// Reset scan state via error broadcast.
-		s.scan.broadcast(ScanEvent{Type: "error", Message: "library not found"})
+		s.scan.reset()
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "library not found"})
 		return
 	}

@@ -27,7 +27,7 @@ func (m *mockProber) Probe(_ context.Context, path string) (*TrackInfo, error) {
 	if m.defaultResult != nil {
 		return m.defaultResult, nil
 	}
-	return &TrackInfo{Codec: "flac", SampleRate: 44100, Channels: 2, Duration: 60, Bitrate: 800}, nil
+	return &TrackInfo{Codec: "flac", SampleRate: 44100, Channels: 2, Duration: 60, Bitrate: 800000}, nil
 }
 
 // makeTestTree creates a temporary directory tree for testing.

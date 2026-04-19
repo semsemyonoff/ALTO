@@ -84,6 +84,14 @@ func (ss *scanState) unsubscribe(ch chan ScanEvent) {
 	}
 }
 
+// reset clears the running flag without broadcasting any event.
+// Use this when a scan never actually started (e.g. validation error).
+func (ss *scanState) reset() {
+	ss.mu.Lock()
+	defer ss.mu.Unlock()
+	ss.running = false
+}
+
 // broadcast sends an event to all subscribers.
 // On "complete" or "error", closes all subscriber channels and marks the scan done.
 func (ss *scanState) broadcast(e ScanEvent) {

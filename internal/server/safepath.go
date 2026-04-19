@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 )
 
@@ -65,12 +66,8 @@ func DestinationValidate(path string, libRoots []string, outputDir string) (stri
 	}
 
 	// Validate tail has no .. segments (defence-in-depth after Clean).
-	if tail != "" {
-		for _, seg := range strings.Split(tail, string(filepath.Separator)) {
-			if seg == ".." {
-				return "", ErrTraversal
-			}
-		}
+	if tail != "" && slices.Contains(strings.Split(tail, string(filepath.Separator)), "..") {
+		return "", ErrTraversal
 	}
 
 	resolvedExisting, err := filepath.EvalSymlinks(existing)
@@ -117,7 +114,7 @@ func isWithin(path, root string) bool {
 func containsAltoPathSegment(path string) bool {
 	vol := filepath.VolumeName(path)
 	rest := path[len(vol):]
-	for _, seg := range strings.Split(rest, string(filepath.Separator)) {
+	for seg := range strings.SplitSeq(rest, string(filepath.Separator)) {
 		if seg == ".alto-out" || strings.HasPrefix(seg, ".alto-") {
 			return true
 		}

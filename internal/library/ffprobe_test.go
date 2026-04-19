@@ -30,7 +30,7 @@ func TestParseFFProbeOutput(t *testing.T) {
 			}`,
 			want: TrackInfo{
 				Codec:      "flac",
-				Bitrate:    892,
+				Bitrate:    892000,
 				Duration:   183.456,
 				SampleRate: 44100,
 				Channels:   2,
@@ -56,7 +56,7 @@ func TestParseFFProbeOutput(t *testing.T) {
 			}`,
 			want: TrackInfo{
 				Codec:      "opus",
-				Bitrate:    160,
+				Bitrate:    160000,
 				Duration:   300.0,
 				SampleRate: 48000,
 				Channels:   2,
@@ -87,7 +87,7 @@ func TestParseFFProbeOutput(t *testing.T) {
 			}`,
 			want: TrackInfo{
 				Codec:      "mp3",
-				Bitrate:    320,
+				Bitrate:    320000,
 				Duration:   210.5,
 				SampleRate: 44100,
 				Channels:   2,
@@ -125,7 +125,7 @@ func TestParseFFProbeOutput(t *testing.T) {
 			}`,
 			want: TrackInfo{
 				Codec:      "",
-				Bitrate:    1,
+				Bitrate:    1000,
 				Duration:   10.0,
 				SampleRate: 0,
 				Channels:   0,
@@ -160,7 +160,7 @@ func TestParseFFProbeOutput(t *testing.T) {
 			}`,
 			want: TrackInfo{
 				Codec:      "flac",
-				Bitrate:    500,
+				Bitrate:    500000,
 				Duration:   60.0,
 				SampleRate: 44100,
 				Channels:   2,
@@ -183,7 +183,7 @@ func TestParseFFProbeOutput(t *testing.T) {
 			}`,
 			want: TrackInfo{
 				Codec:      "aac",
-				Bitrate:    128,
+				Bitrate:    128000,
 				Duration:   30.0,
 				SampleRate: 0,
 				Channels:   1,

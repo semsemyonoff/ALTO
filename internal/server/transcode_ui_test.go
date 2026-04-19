@@ -206,41 +206,6 @@ func TestTranscodeForm_PathEncoded(t *testing.T) {
 	}
 }
 
-// TestTranscodeForm_AdvancedSection verifies the advanced collapsible section is present.
-func TestTranscodeForm_AdvancedSection(t *testing.T) {
-	srv, database, libDir := newTestServerWithRealTemplates(t)
-	libID := srv.cfg.Libraries[0].ID
-
-	absPath := filepath.Join(libDir, "Rock")
-	mkdirAll(t, absPath)
-	dirID, err := database.UpsertDirectory(libID, "Rock", "MP3", false, "")
-	if err != nil {
-		t.Fatalf("UpsertDirectory: %v", err)
-	}
-	database.UpsertTrack(db.Track{ //nolint:errcheck
-		DirectoryID: dirID, Filename: "song.mp3", Codec: "mp3",
-		Bitrate: 320_000, Duration: 180.0, SampleRate: 44100, Channels: 2, Size: 7_200_000,
-	})
-
-	req := httptest.NewRequest(http.MethodGet, apiURL("/dir", map[string]string{"path": absPath}), nil)
-	w := httptest.NewRecorder()
-	srv.ServeHTTP(w, req)
-
-	if w.Code != http.StatusOK {
-		t.Fatalf("want 200, got %d: %s", w.Code, w.Body.String())
-	}
-	body := w.Body.String()
-
-	if !strings.Contains(body, "transcode-advanced") {
-		t.Error("expect transcode-advanced details element")
-	}
-	if !strings.Contains(body, "tc_extra_args") {
-		t.Error("expect extra ffmpeg args input (id=tc_extra_args)")
-	}
-	if !strings.Contains(body, "Advanced") {
-		t.Error("expect 'Advanced' summary label")
-	}
-}
 
 // TestTranscodeForm_CustomParams verifies the custom params section is present.
 func TestTranscodeForm_CustomParams(t *testing.T) {

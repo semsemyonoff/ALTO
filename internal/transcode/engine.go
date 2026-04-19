@@ -300,6 +300,7 @@ func BuildFLACArgs(ffmpegBin, input, output string, preset Preset) []string {
 		ffmpegBin, "-i", input,
 		"-c:a", "flac",
 		"-compression_level", strconv.Itoa(preset.CompressionLevel),
+		"-verify",
 	}
 	if preset.CopyMetadata {
 		args = append(args, "-map_metadata", "0")

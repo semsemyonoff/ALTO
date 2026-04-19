@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -8,6 +9,11 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	"github.com/semsemyonoff/ALTO/internal/db"
+	"github.com/semsemyonoff/ALTO/internal/library"
+	"github.com/semsemyonoff/ALTO/internal/server"
+	"github.com/semsemyonoff/ALTO/internal/transcode"
 )
 
 // Config holds all runtime configuration parsed from environment variables.
@@ -130,11 +136,53 @@ func main() {
 		}
 	}
 
+	database, err := db.Open(cfg.DBPath)
+	if err != nil {
+		slog.Error("open database", "err", err)
+		os.Exit(1)
+	}
+	defer func() { _ = database.Close() }()
+
+	// Upsert all configured libraries and collect their server configs.
+	libCfgs := make([]server.LibraryConfig, 0, len(cfg.Libraries))
+	dbLibs := make([]db.Library, 0, len(cfg.Libraries))
+	for _, lib := range cfg.Libraries {
+		id, err := database.UpsertLibrary(lib.Name, lib.Path)
+		if err != nil {
+			slog.Error("upsert library", "name", lib.Name, "err", err)
+			os.Exit(1)
+		}
+		libCfgs = append(libCfgs, server.LibraryConfig{ID: id, Name: lib.Name, Path: lib.Path})
+		dbLibs = append(dbLibs, db.Library{ID: id, Name: lib.Name, Path: lib.Path})
+	}
+
+	scanner := library.NewScanner(database, nil, library.ScanConfig{
+		OutputDir: cfg.OutputDir,
+		CacheDir:  cfg.CacheDir,
+	})
+	engine := transcode.NewEngine()
+
+	srvCfg := server.Config{
+		Libraries: libCfgs,
+		OutputDir: cfg.OutputDir,
+		CacheDir:  cfg.CacheDir,
+	}
+	srv := server.NewWithEngine(database, scanner, engine, srvCfg)
+
+	// Add a health endpoint alongside the main server.
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = fmt.Fprintln(w, "ok")
 	})
+	mux.Handle("/", srv)
+
+	// Kick off an initial background scan so the UI is populated on first start.
+	go func() {
+		if err := scanner.ScanAll(context.Background(), dbLibs); err != nil {
+			slog.Warn("initial scan error", "err", err)
+		}
+	}()
 
 	addr := ":" + cfg.Port
 	slog.Info("starting ALTO", "addr", addr, "libraries", len(cfg.Libraries))

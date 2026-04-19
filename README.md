@@ -2,8 +2,6 @@
 
 ALTO is a self-hosted web service for browsing and transcoding audio libraries. It provides a directory-tree UI for navigating mounted music collections, indexing audio metadata via ffprobe, and transcoding to FLAC or Opus via ffmpeg with real-time progress streaming.
 
-![ALTO Logo](static/logo.svg)
-
 <!-- screenshot placeholder -->
 
 ## Features
@@ -132,4 +130,4 @@ make build
 ALTO_LIBRARIES="Music:/path/to/music" make run
 ```
 
-Requires Go 1.22+, ffmpeg, and ffprobe on PATH for local development.
+Requires Go 1.26+, ffmpeg, and ffprobe on PATH for local development.
