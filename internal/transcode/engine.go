@@ -252,6 +252,9 @@ func (e *Engine) transcodeReplace(ctx context.Context, job Job, progress chan<- 
 			// Restore this file before rolling back the rest.
 			if rerr := os.Rename(backupPath, inPath); rerr != nil {
 				slog.Error("replace: failed to restore backup after rename failure", "file", fi.Name, "err", rerr)
+				// Add to replaced so rollback() also tries to restore it from backupDir,
+				// preventing os.RemoveAll(backupDir) from deleting the original.
+				replaced = append(replaced, replacedEntry{origName: fi.Name, outName: outName})
 			}
 			rollback()
 			return fmt.Errorf("replace %s: %w", fi.Name, err)
@@ -430,6 +433,7 @@ func copyFile(src, dst string) error {
 // for each line. All stderr output is also forwarded to slog at Debug level.
 func (e *Engine) execFfmpeg(ctx context.Context, args []string, progressFn func(string)) error {
 	cmd := exec.CommandContext(ctx, args[0], args[1:]...)
+	cmd.Stdout = io.Discard
 	stderr, err := cmd.StderrPipe()
 	if err != nil {
 		return fmt.Errorf("stderr pipe: %w", err)
