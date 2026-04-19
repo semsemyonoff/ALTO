@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{{.DirName}} – ALTO</title>
+  <link rel="icon" href="/static/logo.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/static/css/style.css">
   <script src="/static/js/htmx.min.js" defer></script>
 </head>
@@ -12,7 +13,7 @@
 
   <div class="dir-header">
     {{if .HasCover}}
-    <img class="dir-cover" src="/api/cover?path={{.PathEncoded}}" alt="Cover art" loading="lazy">
+    <img class="dir-cover" src="/api/cover?path={{.Path | urlquery}}" alt="Cover art" loading="lazy">
     {{end}}
     <div class="dir-meta">
       <div class="dir-breadcrumb">{{.LibraryName}}</div>
@@ -29,7 +30,7 @@
 
   {{if .Tracks}}
   <!-- Transcoding panel (hidden until Transcode is clicked) -->
-  <div class="transcode-panel" id="transcode-panel" style="display:none" data-path="{{.PathEncoded}}">
+  <div class="transcode-panel" id="transcode-panel" style="display:none" data-path="{{.Path}}">
 
     <!-- Form area -->
     <div id="tc_form_area">
@@ -265,7 +266,7 @@
   window.altoStartTranscode = function(){
     var panel = el('transcode-panel');
     if(!panel) return;
-    var path = decodeURIComponent(panel.getAttribute('data-path'));
+    var path = panel.getAttribute('data-path');
 
     var codecEl = document.querySelector('input[name="tc_codec"]:checked');
     var modeEl = document.querySelector('input[name="tc_output_mode"]:checked');

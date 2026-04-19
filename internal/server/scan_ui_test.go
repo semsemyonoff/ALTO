@@ -79,6 +79,9 @@ func TestScanUI_ScanSSEJSPresent(t *testing.T) {
 	if !strings.Contains(body, "refreshTree") {
 		t.Error("index page JS should include refreshTree function for post-scan tree reload")
 	}
+	if !strings.Contains(body, `rel="icon"`) {
+		t.Error("index page should include favicon link")
+	}
 }
 
 // --- Directory page: library-id data attribute ---

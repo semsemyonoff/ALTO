@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ALTO – Audio Library Transcode Organizer</title>
+  <link rel="icon" href="/static/logo.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/static/css/style.css">
   <script src="/static/js/htmx.min.js" defer></script>
 </head>
@@ -15,7 +16,8 @@
     <span class="app-title">ALTO</span>
     <span class="header-spacer"></span>
     <span id="scan-indicator" class="scan-status" style="display:none">
-      <span class="spinner"></span> Scanning…
+      <span id="scan-spinner" class="spinner" aria-hidden="true"></span>
+      <span id="scan-text">Scanning…</span>
     </span>
     <button class="btn btn-ghost"
             id="scan-btn"
@@ -37,10 +39,30 @@
 
 <script>(function(){
   var scanIndic = document.getElementById('scan-indicator');
+  var scanSpinner = document.getElementById('scan-spinner');
+  var scanText = document.getElementById('scan-text');
   var _scanES = null;
+  var _scanMsgTimer = null;
 
-  function showScanIndic() { if (scanIndic) scanIndic.style.display = ''; }
-  function hideScanIndic() { if (scanIndic) scanIndic.style.display = 'none'; }
+  function showScanStatus(message, state, autoHideMs) {
+    if (!scanIndic) return;
+    if (_scanMsgTimer) { clearTimeout(_scanMsgTimer); _scanMsgTimer = null; }
+    scanIndic.style.display = '';
+    scanIndic.classList.remove('running', 'success', 'error');
+    if (state) scanIndic.classList.add(state);
+    if (scanSpinner) scanSpinner.style.display = state === 'running' ? '' : 'none';
+    if (scanText) scanText.textContent = message || 'Scanning…';
+    if (autoHideMs) {
+      _scanMsgTimer = setTimeout(function() {
+        if (scanIndic) scanIndic.style.display = 'none';
+      }, autoHideMs);
+    }
+  }
+
+  function hideScanIndic() {
+    if (_scanMsgTimer) { clearTimeout(_scanMsgTimer); _scanMsgTimer = null; }
+    if (scanIndic) scanIndic.style.display = 'none';
+  }
 
   function refreshTree() {
     var sel = document.getElementById('library-select');
@@ -51,19 +73,27 @@
 
   function startScanSSE() {
     if (_scanES) { _scanES.close(); }
-    showScanIndic();
+    showScanStatus('Scanning…', 'running');
     _scanES = new EventSource('/api/scan/status');
     _scanES.addEventListener('idle', function() {
       _scanES.close(); _scanES = null; hideScanIndic(); refreshTree();
     });
-    _scanES.addEventListener('complete', function() {
-      _scanES.close(); _scanES = null; hideScanIndic(); refreshTree();
+    _scanES.addEventListener('complete', function(event) {
+      var payload = {};
+      try { payload = JSON.parse(event.data || '{}'); } catch (_) {}
+      _scanES.close(); _scanES = null;
+      showScanStatus(payload.message || 'Re-index complete.', 'success', 6000);
+      refreshTree();
     });
-    _scanES.addEventListener('error', function() {
-      _scanES.close(); _scanES = null; hideScanIndic();
+    _scanES.addEventListener('error', function(event) {
+      var payload = {};
+      try { payload = JSON.parse(event.data || '{}'); } catch (_) {}
+      _scanES.close(); _scanES = null;
+      showScanStatus(payload.message || 'Re-index failed.', 'error', 8000);
     });
     _scanES.onerror = function() {
-      if (_scanES) { _scanES.close(); _scanES = null; } hideScanIndic();
+      if (_scanES) { _scanES.close(); _scanES = null; }
+      showScanStatus('Re-index status connection lost.', 'error', 8000);
     };
   }
 
@@ -71,8 +101,21 @@
   window.altoTriggerScan = function(libraryId) {
     var url = '/api/scan' + (libraryId ? '?library_id=' + encodeURIComponent(libraryId) : '');
     fetch(url, {method: 'POST'})
-      .then(function() { startScanSSE(); })
-      .catch(function() {});
+      .then(function(r) {
+        return r.json().catch(function(){ return {}; }).then(function(data){
+          return {ok: r.ok, data: data};
+        });
+      })
+      .then(function(resp) {
+        if (!resp.ok) {
+          showScanStatus(resp.data.error || 'Unable to start re-index.', 'error', 8000);
+          return;
+        }
+        startScanSSE();
+      })
+      .catch(function() {
+        showScanStatus('Unable to start re-index.', 'error', 8000);
+      });
   };
 })();
 </script>

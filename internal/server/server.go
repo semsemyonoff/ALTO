@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"path/filepath"
@@ -41,6 +42,8 @@ type Config struct {
 type ScanEvent struct {
 	Type    string `json:"type"`              // "started", "complete", "error", "idle"
 	Message string `json:"message,omitempty"` // error message if Type == "error"
+	Added   int    `json:"added,omitempty"`
+	Removed int    `json:"removed,omitempty"`
 }
 
 // scanState manages scan lifecycle and SSE subscriptions under a single mutex.
@@ -195,12 +198,33 @@ func (s *Server) launchScan(libs []db.Library) {
 				s.scan.broadcast(ScanEvent{Type: "error", Message: "internal error"})
 			}
 		}()
+
+		before, err := s.snapshotDirectoryPaths(libs)
+		if err != nil {
+			slog.Error("scan snapshot before", "err", err)
+			s.scan.broadcast(ScanEvent{Type: "error", Message: "failed to prepare re-index"})
+			return
+		}
+
 		s.scan.broadcast(ScanEvent{Type: "started"})
 		if err := s.scanner.ScanAll(s.shutdownCtx, libs); err != nil {
 			slog.Error("scan failed", "err", err)
 			s.scan.broadcast(ScanEvent{Type: "error", Message: err.Error()})
 		} else {
-			s.scan.broadcast(ScanEvent{Type: "complete"})
+			after, snapshotErr := s.snapshotDirectoryPaths(libs)
+			if snapshotErr != nil {
+				slog.Error("scan snapshot after", "err", snapshotErr)
+				s.scan.broadcast(ScanEvent{Type: "error", Message: "failed to summarize re-index"})
+				return
+			}
+
+			added, removed := diffDirectorySnapshots(before, after)
+			s.scan.broadcast(ScanEvent{
+				Type:    "complete",
+				Message: fmt.Sprintf("Re-index complete. Added: %d, removed: %d.", added, removed),
+				Added:   added,
+				Removed: removed,
+			})
 		}
 	}()
 }
@@ -219,8 +243,53 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("GET /api/transcode/{jobID}/progress", s.handleTranscodeProgress)
 	s.mux.HandleFunc("GET /api/transcode/{jobID}/log", s.handleTranscodeLog)
 
+	s.mux.Handle("/favicon.ico", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.ServeFile(w, r, filepath.Join(s.staticDir, "logo.svg"))
+	}))
+
 	// Static file serving (no method restriction to support GET + HEAD).
 	s.mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir(s.staticDir))))
+}
+
+func (s *Server) snapshotDirectoryPaths(libs []db.Library) (map[int64]map[string]struct{}, error) {
+	snapshot := make(map[int64]map[string]struct{}, len(libs))
+	for _, lib := range libs {
+		dirs, err := s.db.GetDirectoryTree(lib.ID)
+		if err != nil {
+			return nil, err
+		}
+
+		paths := make(map[string]struct{}, len(dirs))
+		for _, dir := range dirs {
+			paths[dir.Path] = struct{}{}
+		}
+		snapshot[lib.ID] = paths
+	}
+	return snapshot, nil
+}
+
+func diffDirectorySnapshots(before, after map[int64]map[string]struct{}) (int, int) {
+	var added, removed int
+
+	for libID, afterPaths := range after {
+		beforePaths := before[libID]
+		for path := range afterPaths {
+			if _, ok := beforePaths[path]; !ok {
+				added++
+			}
+		}
+	}
+
+	for libID, beforePaths := range before {
+		afterPaths := after[libID]
+		for path := range beforePaths {
+			if _, ok := afterPaths[path]; !ok {
+				removed++
+			}
+		}
+	}
+
+	return added, removed
 }
 
 // libRoots returns the root paths of all configured libraries.
@@ -254,4 +323,3 @@ func (s *Server) findLibraryForPath(resolvedPath string) (LibraryConfig, string,
 	}
 	return LibraryConfig{}, "", false
 }
-

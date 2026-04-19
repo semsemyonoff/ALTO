@@ -119,7 +119,7 @@ func buildTreeNodeData(lib LibraryConfig, dir db.Directory) TreeNodeData {
 //     expands/collapses children and loads child nodes into .tree-children.
 var treeNodeTmpl = template.Must(template.New("tree_node").Parse(`<div class="tree-node" data-path="{{.Path}}">
   <div class="tree-node-row"
-       hx-get="/api/tree/{{.LibraryID}}/children?parent={{.PathEncoded}}"
+       hx-get="/api/tree/{{.LibraryID}}/children?parent={{.Path | urlquery}}"
        hx-target="next .tree-children"
        hx-swap="innerHTML"
        hx-trigger="click[!event.target.closest('.tree-label,.tree-actions')]"
@@ -128,7 +128,7 @@ var treeNodeTmpl = template.Must(template.New("tree_node").Parse(`<div class="tr
     <span class="tree-toggle">▶</span>
     <span class="tree-icon">{{if .HasCover}}🎵{{else}}📁{{end}}</span>
     <span class="tree-label"
-          hx-get="/dir?path={{.AbsEncoded}}"
+          hx-get="/dir?path={{.AbsPath | urlquery}}"
           hx-target="#content-area"
           hx-select="#dir-content"
           hx-swap="innerHTML"
@@ -137,7 +137,7 @@ var treeNodeTmpl = template.Must(template.New("tree_node").Parse(`<div class="tr
     {{if .CodecSummary}}<span class="codec-badge {{.CodecClass}}">{{.CodecSummary}}</span>{{end}}
     <span class="tree-actions">
       <a class="tree-open-link"
-         href="/dir?path={{.AbsEncoded}}"
+         href="/dir?path={{.AbsPath | urlquery}}"
          target="_blank"
          rel="noopener"
          onclick="event.stopPropagation()"

@@ -24,6 +24,15 @@ func realTemplateDir(t *testing.T) string {
 	return filepath.Join(filepath.Dir(filename), "..", "..", "web", "templates")
 }
 
+func realStaticDir(t *testing.T) string {
+	t.Helper()
+	_, filename, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("runtime.Caller failed")
+	}
+	return filepath.Join(filepath.Dir(filename), "..", "..", "web", "static")
+}
+
 // newTestServerWithRealTemplates creates a Server backed by an in-memory DB
 // and the project's actual web/templates directory.
 func newTestServerWithRealTemplates(t *testing.T) (*Server, *db.DB, string) {
@@ -45,6 +54,7 @@ func newTestServerWithRealTemplates(t *testing.T) (*Server, *db.DB, string) {
 		Libraries:   []LibraryConfig{{ID: libID, Name: "TestLib", Path: libDir}},
 		OutputDir:   t.TempDir(),
 		TemplateDir: realTemplateDir(t),
+		StaticDir:   realStaticDir(t),
 	}
 	srv := New(database, &mockScanner{}, cfg)
 	return srv, database, libDir
@@ -174,9 +184,9 @@ func TestTranscodeForm_NotRenderedWithoutTracks(t *testing.T) {
 	}
 }
 
-// TestTranscodeForm_PathEncoded verifies the panel's data-path attribute holds
-// the URL-encoded absolute path, which the JS uses to build the API request.
-func TestTranscodeForm_PathEncoded(t *testing.T) {
+// TestTranscodeForm_DataPath verifies the panel keeps the raw absolute path in
+// data-path so JS can send it without an extra decode step.
+func TestTranscodeForm_DataPath(t *testing.T) {
 	srv, database, libDir := newTestServerWithRealTemplates(t)
 	libID := srv.cfg.Libraries[0].ID
 
@@ -204,8 +214,17 @@ func TestTranscodeForm_PathEncoded(t *testing.T) {
 	if !strings.Contains(body, "data-path=") {
 		t.Error("transcode-panel must have data-path attribute")
 	}
+	resolvedPath, err := filepath.EvalSymlinks(absPath)
+	if err != nil {
+		t.Fatalf("EvalSymlinks: %v", err)
+	}
+	if !strings.Contains(body, `data-path="`+resolvedPath+`"`) {
+		t.Fatalf("transcode-panel should keep raw absolute path, got:\n%s", body)
+	}
+	if strings.Contains(body, "%252F") {
+		t.Fatalf("directory page must not double-encode paths, got:\n%s", body)
+	}
 }
-
 
 // TestTranscodeForm_CustomParams verifies the custom params section is present.
 func TestTranscodeForm_CustomParams(t *testing.T) {

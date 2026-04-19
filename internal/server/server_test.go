@@ -23,11 +23,17 @@ type mockScanner struct {
 	err error
 }
 
+type scannerFunc func(context.Context, []db.Library) error
+
 func (m *mockScanner) ScanAll(_ context.Context, _ []db.Library) error {
 	if m.block != nil {
 		<-m.block
 	}
 	return m.err
+}
+
+func (f scannerFunc) ScanAll(ctx context.Context, libraries []db.Library) error {
+	return f(ctx, libraries)
 }
 
 // newTestServer creates a Server backed by an in-memory SQLite DB and a mock scanner.
@@ -53,6 +59,7 @@ func newTestServer(t *testing.T) (*Server, *db.DB, string) {
 			{ID: libID, Name: "TestLib", Path: libDir},
 		},
 		OutputDir: t.TempDir(),
+		StaticDir: realStaticDir(t),
 	}
 	srv := New(database, &mockScanner{}, cfg)
 	return srv, database, libDir
@@ -184,10 +191,10 @@ func TestHandleTreeChildren(t *testing.T) {
 	srv, database, _ := newTestServer(t)
 	libID := srv.cfg.Libraries[0].ID
 
-	database.UpsertDirectory(libID, "Jazz", "FLAC", false, "")           //nolint:errcheck
+	database.UpsertDirectory(libID, "Jazz", "FLAC", false, "")             //nolint:errcheck
 	database.UpsertDirectory(libID, "Jazz/Miles Davis", "FLAC", false, "") //nolint:errcheck
-	database.UpsertDirectory(libID, "Jazz/Coltrane", "FLAC", false, "")   //nolint:errcheck
-	database.UpsertDirectory(libID, "Rock", "MP3", false, "")             //nolint:errcheck
+	database.UpsertDirectory(libID, "Jazz/Coltrane", "FLAC", false, "")    //nolint:errcheck
+	database.UpsertDirectory(libID, "Rock", "MP3", false, "")              //nolint:errcheck
 
 	reqURL := apiURL("/api/tree/"+itoa(libID)+"/children", map[string]string{"parent": "Jazz"})
 	req := httptest.NewRequest(http.MethodGet, reqURL, nil)
@@ -218,7 +225,7 @@ func TestHandleTreeChildren_NoParent(t *testing.T) {
 	srv, database, _ := newTestServer(t)
 	libID := srv.cfg.Libraries[0].ID
 
-	database.UpsertDirectory(libID, "Jazz", "FLAC", false, "")  //nolint:errcheck
+	database.UpsertDirectory(libID, "Jazz", "FLAC", false, "") //nolint:errcheck
 	database.UpsertDirectory(libID, "Rock", "MP3", false, "")  //nolint:errcheck
 
 	req := httptest.NewRequest(http.MethodGet, "/api/tree/"+itoa(libID)+"/children", nil)
@@ -543,6 +550,75 @@ func TestHandleScanStatus_ReceivesEvents(t *testing.T) {
 	}
 }
 
+func TestHandleScanStatus_CompleteIncludesSummary(t *testing.T) {
+	database, err := db.Open(":memory:")
+	if err != nil {
+		t.Fatalf("db.Open: %v", err)
+	}
+	defer func() { _ = database.Close() }()
+
+	libDir := t.TempDir()
+	libID, err := database.UpsertLibrary("Lib", libDir)
+	if err != nil {
+		t.Fatalf("UpsertLibrary: %v", err)
+	}
+	if _, err := database.UpsertDirectory(libID, "Old Album", "MP3", false, ""); err != nil {
+		t.Fatalf("UpsertDirectory: %v", err)
+	}
+
+	block := make(chan struct{})
+	scanner := scannerFunc(func(_ context.Context, _ []db.Library) error {
+		<-block
+		if _, err := database.UpsertDirectory(libID, "New Album", "FLAC", false, ""); err != nil {
+			return err
+		}
+		return database.DeleteStaleDirectories(libID, []string{"New Album"})
+	})
+
+	cfg := Config{
+		Libraries: []LibraryConfig{{ID: libID, Name: "Lib", Path: libDir}},
+		StaticDir: realStaticDir(t),
+	}
+	srv := New(database, scanner, cfg)
+
+	go func() {
+		req := httptest.NewRequest(http.MethodPost, "/api/scan", nil)
+		srv.ServeHTTP(httptest.NewRecorder(), req)
+	}()
+	time.Sleep(20 * time.Millisecond)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	req := httptest.NewRequest(http.MethodGet, "/api/scan/status", nil).WithContext(ctx)
+	w := httptest.NewRecorder()
+	done := make(chan struct{})
+	go func() {
+		srv.ServeHTTP(w, req)
+		close(done)
+	}()
+
+	time.Sleep(20 * time.Millisecond)
+	close(block)
+
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("SSE handler did not finish in time")
+	}
+
+	body := w.Body.String()
+	if !strings.Contains(body, `"message":"Re-index complete. Added: 1, removed: 1."`) {
+		t.Fatalf("expected completion message with summary, got: %s", body)
+	}
+	if !strings.Contains(body, `"added":1`) {
+		t.Fatalf("expected added count in SSE payload, got: %s", body)
+	}
+	if !strings.Contains(body, `"removed":1`) {
+		t.Fatalf("expected removed count in SSE payload, got: %s", body)
+	}
+}
+
 // --- GET /api/cover ---
 
 func TestHandleCover_MissingPath(t *testing.T) {
@@ -653,6 +729,21 @@ func TestHandleCover_WithPNG(t *testing.T) {
 	}
 }
 
+func TestHandleFavicon_UsesLogo(t *testing.T) {
+	srv, _, _ := newTestServer(t)
+
+	req := httptest.NewRequest(http.MethodGet, "/favicon.ico", nil)
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d: %s", w.Code, w.Body.String())
+	}
+	if ct := w.Header().Get("Content-Type"); !strings.Contains(ct, "image/svg+xml") {
+		t.Fatalf("want svg favicon content type, got %q", ct)
+	}
+}
+
 // --- Destination path validation (unit tests for DestinationValidate) ---
 
 func TestDestinationValidate_EndpointUsage(t *testing.T) {
@@ -753,6 +844,9 @@ func TestTreeNodeTemplate_BasicRender(t *testing.T) {
 	}
 	if !strings.Contains(body, "codec-flac") {
 		t.Errorf("rendered HTML should contain CSS class 'codec-flac'; got:\n%s", body)
+	}
+	if strings.Contains(body, "%252Fmusic") {
+		t.Errorf("rendered tree links must not double-encode absolute paths; got:\n%s", body)
 	}
 }
 
@@ -933,8 +1027,8 @@ func TestHandleIndex_WithLibraryAndDirectories(t *testing.T) {
 	if err != nil {
 		t.Fatalf("UpsertLibrary: %v", err)
 	}
-	database.UpsertDirectory(libID, "Jazz", "FLAC", false, "")    //nolint:errcheck
-	database.UpsertDirectory(libID, "Rock", "MP3", false, "")     //nolint:errcheck
+	database.UpsertDirectory(libID, "Jazz", "FLAC", false, "")          //nolint:errcheck
+	database.UpsertDirectory(libID, "Rock", "MP3", false, "")           //nolint:errcheck
 	database.UpsertDirectory(libID, "Jazz/Coltrane", "FLAC", false, "") //nolint:errcheck
 
 	tmplDir := minimalIndexTemplates(t)
@@ -975,7 +1069,7 @@ func TestHandleIndex_CodecBadgesPresent(t *testing.T) {
 		t.Fatalf("UpsertLibrary: %v", err)
 	}
 	database.UpsertDirectory(libID, "Lossless", "FLAC", false, "") //nolint:errcheck
-	database.UpsertDirectory(libID, "Lossy", "Opus", false, "")   //nolint:errcheck
+	database.UpsertDirectory(libID, "Lossy", "Opus", false, "")    //nolint:errcheck
 
 	tmplDir := minimalIndexTemplates(t)
 	cfg := Config{

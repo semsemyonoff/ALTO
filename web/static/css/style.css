@@ -283,6 +283,8 @@ a:hover { color: var(--teal); text-decoration: underline; }
 }
 
 .scan-status.running { color: var(--teal); }
+.scan-status.success { color: var(--green); }
+.scan-status.error { color: var(--danger); }
 
 .spinner {
   width: 12px;

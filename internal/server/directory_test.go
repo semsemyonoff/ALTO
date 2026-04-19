@@ -236,6 +236,20 @@ func TestHandleDirPage_WithCover(t *testing.T) {
 	}
 }
 
+func TestBuildDirPageData_PathKeptRawForTemplateEncoding(t *testing.T) {
+	resolvedPath := "/music/My Album"
+	data := buildDirPageData(
+		LibraryConfig{ID: 1, Name: "Music", Path: "/music"},
+		&db.Directory{ID: 10, LibraryID: 1, Path: "My Album", HasCover: true, CodecSummary: "FLAC"},
+		nil,
+		resolvedPath,
+	)
+
+	if data.Path != resolvedPath {
+		t.Fatalf("Path want %q, got %q", resolvedPath, data.Path)
+	}
+}
+
 func TestHandleDirPage_CodecBadge(t *testing.T) {
 	srv, database, libDir := newTestServerWithDirTemplate(t)
 	libID := srv.cfg.Libraries[0].ID
