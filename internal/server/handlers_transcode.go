@@ -9,7 +9,6 @@ import (
 	"path/filepath"
 	"regexp"
 	"strconv"
-	"strings"
 
 	"github.com/semsemyonoff/ALTO/internal/transcode"
 )
@@ -28,7 +27,6 @@ type transcodeRequest struct {
 	Bitrate          string `json:"bitrate,omitempty"`
 	CopyMetadata     *bool  `json:"copy_metadata,omitempty"`
 	CopyCover        *bool  `json:"copy_cover,omitempty"`
-	ExtraArgs        string `json:"extra_args,omitempty"`
 }
 
 // handleTranscodeStart handles POST /api/transcode.
@@ -327,7 +325,7 @@ func resolvePreset(req transcodeRequest) (transcode.Preset, error) {
 		Name:         "custom",
 		Codec:        codec,
 		CopyMetadata: true,
-		CopyCover:    true,
+		CopyCover:    codec == transcode.CodecFLAC,
 	}
 	if req.CompressionLevel != nil {
 		p.CompressionLevel = *req.CompressionLevel
@@ -348,7 +346,6 @@ func resolvePreset(req transcodeRequest) (transcode.Preset, error) {
 	if req.CopyCover != nil {
 		p.CopyCover = *req.CopyCover
 	}
-	p.ExtraArgs = strings.Fields(req.ExtraArgs)
 	return p, nil
 }
 

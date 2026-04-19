@@ -54,7 +54,7 @@
     showScanIndic();
     _scanES = new EventSource('/api/scan/status');
     _scanES.addEventListener('idle', function() {
-      _scanES.close(); _scanES = null; hideScanIndic();
+      _scanES.close(); _scanES = null; hideScanIndic(); refreshTree();
     });
     _scanES.addEventListener('complete', function() {
       _scanES.close(); _scanES = null; hideScanIndic(); refreshTree();

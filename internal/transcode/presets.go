@@ -39,10 +39,11 @@ var (
 )
 
 // Opus presets — all use vbr, application audio, compression_level 10.
+// CopyCover is false: Ogg containers do not support embedded video streams.
 var (
-	OpusMusicBalanced = Preset{Name: "Music Balanced", Codec: CodecOpus, CompressionLevel: 10, Bitrate: "128k", CopyMetadata: true, CopyCover: true}
-	OpusMusicHigh     = Preset{Name: "Music High", Codec: CodecOpus, CompressionLevel: 10, Bitrate: "160k", CopyMetadata: true, CopyCover: true}
-	OpusArchiveLossy  = Preset{Name: "Archive Lossy", Codec: CodecOpus, CompressionLevel: 10, Bitrate: "192k", CopyMetadata: true, CopyCover: true}
+	OpusMusicBalanced = Preset{Name: "Music Balanced", Codec: CodecOpus, CompressionLevel: 10, Bitrate: "128k", CopyMetadata: true, CopyCover: false}
+	OpusMusicHigh     = Preset{Name: "Music High", Codec: CodecOpus, CompressionLevel: 10, Bitrate: "160k", CopyMetadata: true, CopyCover: false}
+	OpusArchiveLossy  = Preset{Name: "Archive Lossy", Codec: CodecOpus, CompressionLevel: 10, Bitrate: "192k", CopyMetadata: true, CopyCover: false}
 )
 
 // DefaultPresets returns all built-in presets in display order.

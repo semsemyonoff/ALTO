@@ -77,14 +77,6 @@
         </div>
       </div>
 
-      <details id="tc_advanced" class="form-advanced">
-        <summary class="form-advanced-summary">Advanced</summary>
-        <div class="form-row">
-          <label class="form-label" for="tc_extra_args">Extra ffmpeg args</label>
-          <input class="form-input" id="tc_extra_args" type="text" placeholder="e.g. -af loudnorm">
-        </div>
-      </details>
-
       <div class="form-row">
         <span class="form-label">Output mode</span>
         <div class="output-mode-group">
@@ -308,9 +300,6 @@
       if(metaEl) body.copy_metadata = metaEl.checked;
       if(coverEl) body.copy_cover = coverEl.checked;
     }
-
-    var extraArgsEl = el('tc_extra_args');
-    if(extraArgsEl && extraArgsEl.value.trim()) body.extra_args = extraArgsEl.value.trim();
 
     var errEl = el('tc_error');
     var startBtn = el('tc_start_btn');
