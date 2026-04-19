@@ -47,15 +47,15 @@
 ## Implementation Steps
 
 ### Task 1: Project scaffolding and tooling
-- [ ] initialize `go.mod` with module path `github.com/semsemyonoff/ALTO` (Go 1.26.2)
-- [ ] create directory structure: `cmd/alto/`, `internal/library/`, `internal/transcode/`, `internal/server/`, `internal/db/`, `web/templates/`, `web/static/`
-- [ ] create `cmd/alto/main.go` with minimal HTTP server startup, env var parsing for all runtime config: `ALTO_LIBRARIES` (comma-separated `name:path`), `ALTO_PORT` (default 8080), `ALTO_OUTPUT_DIR` (default `/out`), `ALTO_DB_PATH` (default `./alto.db`), `ALTO_CACHE_DIR` (default `./cache`)
-- [ ] create `Makefile` with targets: `build`, `test`, `lint`, `run`, `docker-build`
-- [ ] configure `.golangci.yml` with modernize enabled, plus govet, errcheck, staticcheck, unused, gosimple, ineffassign
-- [ ] create `Dockerfile` (multi-stage: Go builder + Alpine runtime with ffmpeg/ffprobe)
-- [ ] create `docker-compose.yml` example with library volume mounts and /out mount
-- [ ] write test for env var parsing (success + missing vars + duplicate library names + invalid library name characters); startup logs a warning if `ALTO_OUTPUT_DIR` resolves inside a library root (valid but scanner will exclude it)
-- [ ] run `go test ./...` and `golangci-lint run` - must pass before next task
+- [x] initialize `go.mod` with module path `github.com/semsemyonoff/ALTO` (Go 1.26.2)
+- [x] create directory structure: `cmd/alto/`, `internal/library/`, `internal/transcode/`, `internal/server/`, `internal/db/`, `web/templates/`, `web/static/`
+- [x] create `cmd/alto/main.go` with minimal HTTP server startup, env var parsing for all runtime config: `ALTO_LIBRARIES` (comma-separated `name:path`), `ALTO_PORT` (default 8080), `ALTO_OUTPUT_DIR` (default `/out`), `ALTO_DB_PATH` (default `./alto.db`), `ALTO_CACHE_DIR` (default `./cache`)
+- [x] create `Makefile` with targets: `build`, `test`, `lint`, `run`, `docker-build`
+- [x] configure `.golangci.yml` with modernize enabled, plus govet, errcheck, staticcheck, unused, gosimple, ineffassign
+- [x] create `Dockerfile` (multi-stage: Go builder + Alpine runtime with ffmpeg/ffprobe)
+- [x] create `docker-compose.yml` example with library volume mounts and /out mount
+- [x] write test for env var parsing (success + missing vars + duplicate library names + invalid library name characters); startup logs a warning if `ALTO_OUTPUT_DIR` resolves inside a library root (valid but scanner will exclude it)
+- [x] run `go test ./...` and `golangci-lint run` - must pass before next task
 
 ### Task 2: SQLite database and schema
 - [ ] add `modernc.org/sqlite` dependency

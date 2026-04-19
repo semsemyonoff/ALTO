@@ -1,0 +1,21 @@
+services:
+  alto:
+    image: alto:latest
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      ALTO_LIBRARIES: "Music:/music,Lossless:/lossless"
+      ALTO_PORT: "8080"
+      ALTO_OUTPUT_DIR: "/out"
+      ALTO_DB_PATH: "/data/alto.db"
+      ALTO_CACHE_DIR: "/data/cache"
+    volumes:
+      - /path/to/your/music:/music:ro
+      - /path/to/your/lossless:/lossless:ro
+      - /path/to/output:/out
+      - alto_data:/data
+    restart: unless-stopped
+
+volumes:
+  alto_data:
