@@ -80,15 +80,29 @@ CREATE TABLE IF NOT EXISTS tracks (
 `
 
 // Open opens (or creates) a SQLite database at the given path and runs migrations.
+//
+// For file-based databases, WAL mode is enabled and the connection pool is left
+// unlimited so that concurrent HTTP reads can proceed while the scanner holds a
+// write connection. The write mutex (DB.mu) serialises all writes.
+//
+// For in-memory databases (path == ":memory:") the URI is rewritten to use a
+// named shared-cache database so that all pool connections see the same schema
+// and data. This is used by tests.
 func Open(path string) (*DB, error) {
-	dsn := path + "?_pragma=foreign_keys(ON)&_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)"
+	var dsn string
+	if path == ":memory:" {
+		// Named shared-cache in-memory database: multiple pool connections share
+		// one logical database within the process.
+		dsn = "file::memory:?mode=memory&cache=shared&_pragma=foreign_keys(ON)&_pragma=busy_timeout(5000)"
+	} else {
+		// File-based: WAL gives concurrent read/write; pool is unrestricted.
+		dsn = "file:" + path + "?_pragma=foreign_keys(ON)&_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)"
+	}
+
 	sqlDB, err := sql.Open("sqlite", dsn)
 	if err != nil {
 		return nil, fmt.Errorf("open sqlite: %w", err)
 	}
-
-	// Single writer — limit pool to one connection for writes; reads go through the same pool.
-	sqlDB.SetMaxOpenConns(1)
 
 	db := &DB{sql: sqlDB}
 	if err := db.migrate(); err != nil {
@@ -192,6 +206,8 @@ func (db *DB) UpsertTrack(t Track) error {
 }
 
 // DeleteStaleFiles removes track rows whose filenames are not in currentFilenames.
+// It queries existing filenames first and deletes stale ones in batches of 500 to
+// stay well under SQLite's default SQLITE_LIMIT_VARIABLE_NUMBER (999).
 func (db *DB) DeleteStaleFiles(directoryID int64, currentFilenames []string) error {
 	db.mu.Lock()
 	defer db.mu.Unlock()
@@ -201,24 +217,20 @@ func (db *DB) DeleteStaleFiles(directoryID int64, currentFilenames []string) err
 		return err
 	}
 
-	// Build placeholders.
-	args := make([]any, 0, len(currentFilenames)+1)
-	args = append(args, directoryID)
-	placeholders := make([]byte, 0, len(currentFilenames)*2)
-	for i, f := range currentFilenames {
-		if i > 0 {
-			placeholders = append(placeholders, ',')
-		}
-		placeholders = append(placeholders, '?')
-		args = append(args, f)
+	stale, err := db.staleNames(
+		`SELECT filename FROM tracks WHERE directory_id=?`, directoryID,
+		currentFilenames,
+	)
+	if err != nil {
+		return err
 	}
-
-	q := `DELETE FROM tracks WHERE directory_id=? AND filename NOT IN (` + string(placeholders) + `)`
-	_, err := db.sql.Exec(q, args...)
-	return err
+	return db.deleteInBatches(
+		`DELETE FROM tracks WHERE directory_id=? AND filename IN `, directoryID, stale,
+	)
 }
 
 // DeleteStaleDirectories removes directory rows whose paths are not in currentPaths.
+// It queries existing paths first and deletes stale ones in batches of 500.
 func (db *DB) DeleteStaleDirectories(libraryID int64, currentPaths []string) error {
 	db.mu.Lock()
 	defer db.mu.Unlock()
@@ -228,20 +240,70 @@ func (db *DB) DeleteStaleDirectories(libraryID int64, currentPaths []string) err
 		return err
 	}
 
-	args := make([]any, 0, len(currentPaths)+1)
-	args = append(args, libraryID)
-	placeholders := make([]byte, 0, len(currentPaths)*2)
-	for i, p := range currentPaths {
-		if i > 0 {
-			placeholders = append(placeholders, ',')
-		}
-		placeholders = append(placeholders, '?')
-		args = append(args, p)
+	stale, err := db.staleNames(
+		`SELECT path FROM directories WHERE library_id=?`, libraryID,
+		currentPaths,
+	)
+	if err != nil {
+		return err
+	}
+	return db.deleteInBatches(
+		`DELETE FROM directories WHERE library_id=? AND path IN `, libraryID, stale,
+	)
+}
+
+// staleNames queries a single text column from the DB and returns values not
+// present in keepSet. The caller must hold db.mu.
+func (db *DB) staleNames(query string, id int64, keep []string) ([]string, error) {
+	keepSet := make(map[string]struct{}, len(keep))
+	for _, v := range keep {
+		keepSet[v] = struct{}{}
 	}
 
-	q := `DELETE FROM directories WHERE library_id=? AND path NOT IN (` + string(placeholders) + `)`
-	_, err := db.sql.Exec(q, args...)
-	return err
+	rows, err := db.sql.Query(query, id)
+	if err != nil {
+		return nil, fmt.Errorf("query existing rows: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	var stale []string
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			return nil, fmt.Errorf("scan row: %w", err)
+		}
+		if _, ok := keepSet[name]; !ok {
+			stale = append(stale, name)
+		}
+	}
+	return stale, rows.Err()
+}
+
+// deleteInBatches executes a DELETE … IN (?) for stale values in chunks of 500.
+// queryPrefix must end with " IN " — placeholders and the closing paren are appended.
+// The caller must hold db.mu.
+func (db *DB) deleteInBatches(queryPrefix string, id int64, stale []string) error {
+	const chunkSize = 500
+	for len(stale) > 0 {
+		chunk := stale
+		if len(chunk) > chunkSize {
+			chunk = chunk[:chunkSize]
+		}
+		stale = stale[len(chunk):]
+
+		args := make([]any, 0, 1+len(chunk))
+		args = append(args, id)
+		placeholders := make([]string, len(chunk))
+		for i, v := range chunk {
+			placeholders[i] = "?"
+			args = append(args, v)
+		}
+		q := queryPrefix + "(" + strings.Join(placeholders, ",") + ")"
+		if _, err := db.sql.Exec(q, args...); err != nil {
+			return fmt.Errorf("delete stale rows: %w", err)
+		}
+	}
+	return nil
 }
 
 // GetLibraries returns all libraries.

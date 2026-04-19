@@ -293,16 +293,12 @@ func (s *Scanner) probeFiles(ctx context.Context, dirPath string, audioFiles []s
 		fi, err := os.Stat(fullPath)
 		if err != nil {
 			slog.Warn("stat audio file", "path", fullPath, "err", err)
-		}
-
-		var size int64
-		if fi != nil {
-			size = fi.Size()
+			continue
 		}
 
 		t := db.Track{
 			Filename: name,
-			Size:     size,
+			Size:     fi.Size(),
 		}
 
 		info, probeErr := s.prober.Probe(ctx, fullPath)

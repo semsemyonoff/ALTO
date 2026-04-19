@@ -63,7 +63,8 @@ volumes:
   alto_data:
 ```
 
-Library mounts can be read-only (`:ro`). ALTO writes only to `/out` and `/data`.
+**Read-only mounts** (`:ro`) are only safe when using **Shared `/out`** output mode.
+**Local `.alto-out/`** and **Replace** modes write into the source directory and require a writable library mount (`:rw` or no flag).
 
 ### Build
 

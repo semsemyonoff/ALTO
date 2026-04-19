@@ -39,6 +39,7 @@ func (s *Server) handleTranscodeStart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20) // 1 MiB max
 	var req transcodeRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "invalid request body", http.StatusBadRequest)
@@ -300,10 +301,10 @@ func calcOverallPercent(p transcode.ProgressReport) float64 {
 // If req.Preset names a built-in preset, it is returned directly.
 // Otherwise, custom fields are used to construct a preset.
 func resolvePreset(req transcodeRequest) (transcode.Preset, error) {
-	// Try named preset first.
+	// Try named preset first. Named presets are fixed configurations; ExtraArgs
+	// is intentionally not applied so callers cannot inject arbitrary ffmpeg flags.
 	for _, p := range transcode.DefaultPresets() {
 		if p.Name == req.Preset {
-			p.ExtraArgs = strings.Fields(req.ExtraArgs)
 			return p, nil
 		}
 	}
