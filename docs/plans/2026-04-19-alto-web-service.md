@@ -220,10 +220,10 @@
 - [x] run linter (`golangci-lint run`) - 0 issues
 
 ### Task 12: [Final] Update documentation
-- [ ] create README.md with project description, screenshot placeholder, usage instructions
-- [ ] document env vars: `ALTO_LIBRARIES`, `ALTO_PORT`, `ALTO_OUTPUT_DIR`, `ALTO_DB_PATH`, `ALTO_CACHE_DIR`
-- [ ] document Docker usage with docker-compose example
-- [ ] document available presets and custom parameters
+- [x] create README.md with project description, screenshot placeholder, usage instructions
+- [x] document env vars: `ALTO_LIBRARIES`, `ALTO_PORT`, `ALTO_OUTPUT_DIR`, `ALTO_DB_PATH`, `ALTO_CACHE_DIR`
+- [x] document Docker usage with docker-compose example
+- [x] document available presets and custom parameters
 
 ## Technical Details
 
