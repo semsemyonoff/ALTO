@@ -34,6 +34,7 @@ type Config struct {
 	OutputDir   string
 	CacheDir    string
 	TemplateDir string // defaults to "web/templates"
+	StaticDir   string // defaults to "web/static"
 }
 
 // ScanEvent represents a scan lifecycle event broadcast over SSE.
@@ -115,14 +116,15 @@ func (ss *scanState) broadcast(e ScanEvent) {
 
 // Server is the ALTO HTTP server.
 type Server struct {
-	db       *db.DB
-	scanner  LibraryScanner
-	engine   TranscodeEngine
-	cfg      Config
-	mux      *http.ServeMux
-	scan     scanState
-	tmpl     templateEngine
-	jobs     *jobManager
+	db        *db.DB
+	scanner   LibraryScanner
+	engine    TranscodeEngine
+	cfg       Config
+	mux       *http.ServeMux
+	scan      scanState
+	tmpl      templateEngine
+	jobs      *jobManager
+	staticDir string
 }
 
 // New creates a new Server and registers all routes.
@@ -136,14 +138,19 @@ func NewWithEngine(database *db.DB, scanner LibraryScanner, engine TranscodeEngi
 	if tmplDir == "" {
 		tmplDir = "web/templates"
 	}
+	staticDir := cfg.StaticDir
+	if staticDir == "" {
+		staticDir = "web/static"
+	}
 	s := &Server{
-		db:      database,
-		scanner: scanner,
-		engine:  engine,
-		cfg:     cfg,
-		mux:     http.NewServeMux(),
-		tmpl:    templateEngine{dir: tmplDir},
-		jobs:    newJobManager(),
+		db:        database,
+		scanner:   scanner,
+		engine:    engine,
+		cfg:       cfg,
+		mux:       http.NewServeMux(),
+		tmpl:      templateEngine{dir: tmplDir},
+		jobs:      newJobManager(),
+		staticDir: staticDir,
 	}
 	s.registerRoutes()
 	return s
@@ -203,7 +210,7 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("GET /api/transcode/{jobID}/log", s.handleTranscodeLog)
 
 	// Static file serving (no method restriction to support GET + HEAD).
-	s.mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("web/static"))))
+	s.mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir(s.staticDir))))
 }
 
 // libRoots returns the root paths of all configured libraries.

@@ -203,7 +203,11 @@ func (e *Engine) transcodeReplace(ctx context.Context, job Job, progress chan<- 
 			outPath := filepath.Join(sourceDir, rf.outName)
 			if err := os.Rename(backupPath, origPath); err != nil {
 				slog.Error("rollback: failed to restore original", "file", rf.origName, "err", err)
-			} else {
+			} else if outPath != origPath {
+				// Only remove the transcoded output when it has a different name than the
+				// original; when origName == outName (same-codec transcode, e.g. FLAC→FLAC)
+				// the two paths are identical and removing outPath would delete the just-
+				// restored original.
 				_ = os.Remove(outPath)
 			}
 		}
