@@ -718,6 +718,352 @@ func TestTemplateEngine_LoadAndRender(t *testing.T) {
 	}
 }
 
+// --- Tree node template ---
+
+func TestTreeNodeTemplate_BasicRender(t *testing.T) {
+	nd := TreeNodeData{
+		LibraryID:    1,
+		Path:         "Jazz/Miles Davis",
+		PathEncoded:  "Jazz%2FMiles+Davis",
+		AbsPath:      "/music/Jazz/Miles Davis",
+		AbsEncoded:   "%2Fmusic%2FJazz%2FMiles+Davis",
+		Basename:     "Miles Davis",
+		HasCover:     false,
+		CodecSummary: "FLAC",
+		CodecClass:   "codec-flac",
+	}
+
+	html, err := renderTreeNodes([]TreeNodeData{nd})
+	if err != nil {
+		t.Fatalf("renderTreeNodes: %v", err)
+	}
+	body := string(html)
+
+	if !strings.Contains(body, "Miles Davis") {
+		t.Errorf("rendered HTML should contain basename 'Miles Davis'; got:\n%s", body)
+	}
+	if !strings.Contains(body, "hx-get=") {
+		t.Errorf("rendered HTML should contain HTMX hx-get attribute; got:\n%s", body)
+	}
+	if !strings.Contains(body, "tree-children") {
+		t.Errorf("rendered HTML should contain .tree-children div; got:\n%s", body)
+	}
+	if !strings.Contains(body, "FLAC") {
+		t.Errorf("rendered HTML should contain codec badge 'FLAC'; got:\n%s", body)
+	}
+	if !strings.Contains(body, "codec-flac") {
+		t.Errorf("rendered HTML should contain CSS class 'codec-flac'; got:\n%s", body)
+	}
+}
+
+func TestTreeNodeTemplate_WithCover(t *testing.T) {
+	nd := TreeNodeData{
+		LibraryID:    2,
+		Path:         "Classical",
+		PathEncoded:  "Classical",
+		AbsPath:      "/music/Classical",
+		AbsEncoded:   "%2Fmusic%2FClassical",
+		Basename:     "Classical",
+		HasCover:     true,
+		CodecSummary: "FLAC",
+		CodecClass:   "codec-flac",
+	}
+
+	html, err := renderTreeNodes([]TreeNodeData{nd})
+	if err != nil {
+		t.Fatalf("renderTreeNodes: %v", err)
+	}
+	body := string(html)
+
+	// With cover, should show music icon rather than folder.
+	if !strings.Contains(body, "🎵") {
+		t.Errorf("rendered HTML with cover should contain 🎵 icon; got:\n%s", body)
+	}
+}
+
+func TestTreeNodeTemplate_NoCoverNoBadge(t *testing.T) {
+	nd := TreeNodeData{
+		LibraryID: 1,
+		Path:      "Rock",
+		Basename:  "Rock",
+		HasCover:  false,
+	}
+
+	html, err := renderTreeNodes([]TreeNodeData{nd})
+	if err != nil {
+		t.Fatalf("renderTreeNodes: %v", err)
+	}
+	body := string(html)
+
+	// No cover → folder icon.
+	if !strings.Contains(body, "📁") {
+		t.Errorf("rendered HTML without cover should contain 📁 icon; got:\n%s", body)
+	}
+	// No codec summary → no badge element.
+	if strings.Contains(body, "codec-badge") {
+		t.Errorf("rendered HTML with no codec should not contain codec-badge; got:\n%s", body)
+	}
+}
+
+func TestTreeNodeTemplate_MultipleNodes(t *testing.T) {
+	nodes := []TreeNodeData{
+		{LibraryID: 1, Path: "Jazz", Basename: "Jazz", CodecSummary: "FLAC", CodecClass: "codec-flac"},
+		{LibraryID: 1, Path: "Rock", Basename: "Rock", CodecSummary: "MP3", CodecClass: "codec-mp3"},
+		{LibraryID: 1, Path: "Electronic", Basename: "Electronic", CodecSummary: "Opus", CodecClass: "codec-opus"},
+	}
+
+	html, err := renderTreeNodes(nodes)
+	if err != nil {
+		t.Fatalf("renderTreeNodes: %v", err)
+	}
+	body := string(html)
+
+	for _, want := range []string{"Jazz", "Rock", "Electronic", "FLAC", "MP3", "Opus"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("rendered HTML should contain %q; got:\n%s", want, body)
+		}
+	}
+}
+
+func TestCodecClass(t *testing.T) {
+	cases := []struct {
+		summary string
+		want    string
+	}{
+		{"FLAC", "codec-flac"},
+		{"flac", "codec-flac"},
+		{"Opus", "codec-opus"},
+		{"MP3", "codec-mp3"},
+		{"Mixed", "codec-mixed"},
+		{"MIXED", "codec-mixed"},
+		{"WAV", "codec-other"},
+		{"", ""},
+	}
+	for _, tc := range cases {
+		got := codecClass(tc.summary)
+		if got != tc.want {
+			t.Errorf("codecClass(%q) = %q, want %q", tc.summary, got, tc.want)
+		}
+	}
+}
+
+func TestBuildTreeNodeData(t *testing.T) {
+	lib := LibraryConfig{ID: 1, Name: "Music", Path: "/music"}
+	dir := db.Directory{
+		ID:           10,
+		LibraryID:    1,
+		Path:         "Jazz/Miles Davis",
+		HasCover:     true,
+		CodecSummary: "FLAC",
+	}
+
+	nd := buildTreeNodeData(lib, dir)
+
+	if nd.LibraryID != 1 {
+		t.Errorf("LibraryID want 1, got %d", nd.LibraryID)
+	}
+	if nd.Path != "Jazz/Miles Davis" {
+		t.Errorf("Path want 'Jazz/Miles Davis', got %q", nd.Path)
+	}
+	if nd.Basename != "Miles Davis" {
+		t.Errorf("Basename want 'Miles Davis', got %q", nd.Basename)
+	}
+	if nd.PathEncoded == "" {
+		t.Error("PathEncoded should not be empty")
+	}
+	if nd.HasCover != true {
+		t.Error("HasCover should be true")
+	}
+	if nd.CodecClass != "codec-flac" {
+		t.Errorf("CodecClass want 'codec-flac', got %q", nd.CodecClass)
+	}
+}
+
+// --- Index page ---
+
+// writeTemplateFile writes content to a file in dir, fataling on error.
+func writeTemplateFile(t *testing.T, dir, name, content string) {
+	t.Helper()
+	if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0o644); err != nil {
+		t.Fatalf("WriteFile %s: %v", name, err)
+	}
+}
+
+// minimalIndexTemplates creates a minimal set of templates for testing the index page.
+func minimalIndexTemplates(t *testing.T) string {
+	t.Helper()
+	dir := t.TempDir()
+	writeTemplateFile(t, dir, "base.html", `{{define "base"}}<!DOCTYPE html><html><body>{{template "sidebar" .}}{{template "content" .}}</body></html>{{end}}`)
+	writeTemplateFile(t, dir, "index.html", `{{define "sidebar"}}<nav id="tree-root">{{.TopDirsHTML}}</nav>{{end}}{{define "content"}}<main>Select a directory</main>{{end}}{{define "index.html"}}{{template "base" .}}{{end}}`)
+	return dir
+}
+
+func TestHandleIndex_NoLibraries(t *testing.T) {
+	database, err := db.Open(":memory:")
+	if err != nil {
+		t.Fatalf("db.Open: %v", err)
+	}
+	defer func() { _ = database.Close() }()
+
+	tmplDir := minimalIndexTemplates(t)
+	srv := New(database, &mockScanner{}, Config{TemplateDir: tmplDir})
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d: %s", w.Code, w.Body.String())
+	}
+	body := w.Body.String()
+	if !strings.Contains(body, "tree-root") {
+		t.Errorf("response should contain tree-root element; got:\n%s", body)
+	}
+}
+
+func TestHandleIndex_WithLibraryAndDirectories(t *testing.T) {
+	database, err := db.Open(":memory:")
+	if err != nil {
+		t.Fatalf("db.Open: %v", err)
+	}
+	defer func() { _ = database.Close() }()
+
+	libDir := t.TempDir()
+	libID, err := database.UpsertLibrary("Music", libDir)
+	if err != nil {
+		t.Fatalf("UpsertLibrary: %v", err)
+	}
+	database.UpsertDirectory(libID, "Jazz", "FLAC", false, "")    //nolint:errcheck
+	database.UpsertDirectory(libID, "Rock", "MP3", false, "")     //nolint:errcheck
+	database.UpsertDirectory(libID, "Jazz/Coltrane", "FLAC", false, "") //nolint:errcheck
+
+	tmplDir := minimalIndexTemplates(t)
+	cfg := Config{
+		Libraries:   []LibraryConfig{{ID: libID, Name: "Music", Path: libDir}},
+		TemplateDir: tmplDir,
+	}
+	srv := New(database, &mockScanner{}, cfg)
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d: %s", w.Code, w.Body.String())
+	}
+	body := w.Body.String()
+
+	// Top-level dirs should appear; nested dirs should not (GetDirectoryChildren with "" only returns top-level).
+	if !strings.Contains(body, "Jazz") {
+		t.Errorf("index page should contain 'Jazz' directory; got:\n%s", body)
+	}
+	if !strings.Contains(body, "Rock") {
+		t.Errorf("index page should contain 'Rock' directory; got:\n%s", body)
+	}
+}
+
+func TestHandleIndex_CodecBadgesPresent(t *testing.T) {
+	database, err := db.Open(":memory:")
+	if err != nil {
+		t.Fatalf("db.Open: %v", err)
+	}
+	defer func() { _ = database.Close() }()
+
+	libDir := t.TempDir()
+	libID, err := database.UpsertLibrary("Music", libDir)
+	if err != nil {
+		t.Fatalf("UpsertLibrary: %v", err)
+	}
+	database.UpsertDirectory(libID, "Lossless", "FLAC", false, "") //nolint:errcheck
+	database.UpsertDirectory(libID, "Lossy", "Opus", false, "")   //nolint:errcheck
+
+	tmplDir := minimalIndexTemplates(t)
+	cfg := Config{
+		Libraries:   []LibraryConfig{{ID: libID, Name: "Music", Path: libDir}},
+		TemplateDir: tmplDir,
+	}
+	srv := New(database, &mockScanner{}, cfg)
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d: %s", w.Code, w.Body.String())
+	}
+	body := w.Body.String()
+
+	if !strings.Contains(body, "codec-flac") {
+		t.Errorf("index page should contain codec-flac badge; got:\n%s", body)
+	}
+	if !strings.Contains(body, "codec-opus") {
+		t.Errorf("index page should contain codec-opus badge; got:\n%s", body)
+	}
+}
+
+func TestHandleIndex_OpenInNewTabLinks(t *testing.T) {
+	database, err := db.Open(":memory:")
+	if err != nil {
+		t.Fatalf("db.Open: %v", err)
+	}
+	defer func() { _ = database.Close() }()
+
+	libDir := t.TempDir()
+	libID, err := database.UpsertLibrary("Music", libDir)
+	if err != nil {
+		t.Fatalf("UpsertLibrary: %v", err)
+	}
+	database.UpsertDirectory(libID, "Jazz", "FLAC", false, "") //nolint:errcheck
+
+	tmplDir := minimalIndexTemplates(t)
+	cfg := Config{
+		Libraries:   []LibraryConfig{{ID: libID, Name: "Music", Path: libDir}},
+		TemplateDir: tmplDir,
+	}
+	srv := New(database, &mockScanner{}, cfg)
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d: %s", w.Code, w.Body.String())
+	}
+	body := w.Body.String()
+
+	// "Open in new tab" links should be present with target=_blank.
+	if !strings.Contains(body, `target="_blank"`) {
+		t.Errorf("index page should contain open-in-new-tab links; got:\n%s", body)
+	}
+}
+
+// TestHandleTreeChildren_HTMXAttributes verifies the new tree children partial includes HTMX attributes.
+func TestHandleTreeChildren_HTMXAttributes(t *testing.T) {
+	srv, database, _ := newTestServer(t)
+	libID := srv.cfg.Libraries[0].ID
+
+	database.UpsertDirectory(libID, "Jazz", "FLAC", false, "") //nolint:errcheck
+
+	req := httptest.NewRequest(http.MethodGet, "/api/tree/"+itoa(libID)+"/children", nil)
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d: %s", w.Code, w.Body.String())
+	}
+	body := w.Body.String()
+
+	if !strings.Contains(body, "hx-get=") {
+		t.Errorf("tree children should include hx-get attribute; got:\n%s", body)
+	}
+	if !strings.Contains(body, "tree-children") {
+		t.Errorf("tree children should include .tree-children container; got:\n%s", body)
+	}
+	if !strings.Contains(body, "Jazz") {
+		t.Errorf("tree children should include directory name 'Jazz'; got:\n%s", body)
+	}
+}
+
 // itoa converts int64 to string, for building URL paths in tests.
 func itoa(n int64) string {
 	return strings.TrimRight(strings.TrimRight(

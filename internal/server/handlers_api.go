@@ -109,13 +109,26 @@ func (s *Server) handleTreeChildren(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Return HTML partial for HTMX lazy tree expansion.
-	// Templates will be enhanced in Task 5.
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	for _, c := range children {
-		_, _ = fmt.Fprintf(w, `<div class="tree-node" data-library-id="%d" data-path="%s" data-codec="%s">%s</div>`+"\n",
-			libraryID, htmlEscape(c.Path), htmlEscape(c.CodecSummary), htmlEscape(c.Path))
+	libCfg, ok := findLibConfigByID(s.cfg, libraryID)
+	if !ok {
+		// Library config not found; fall back to a minimal response.
+		libCfg = LibraryConfig{ID: libraryID}
 	}
+
+	nodes := make([]TreeNodeData, len(children))
+	for i, c := range children {
+		nodes[i] = buildTreeNodeData(libCfg, c)
+	}
+
+	html, err := renderTreeNodes(nodes)
+	if err != nil {
+		slog.Error("handleTreeChildren: renderTreeNodes", "err", err)
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	_, _ = fmt.Fprint(w, string(html))
 }
 
 // handleDir returns directory details and tracks for the given absolute path.
@@ -319,11 +332,3 @@ func (s *Server) handleCover(w http.ResponseWriter, r *http.Request) {
 	http.ServeContent(w, r, dir.CoverPath, fi.ModTime(), f)
 }
 
-// htmlEscape escapes special HTML characters for safe use in attributes and text.
-func htmlEscape(s string) string {
-	s = strings.ReplaceAll(s, "&", "&amp;")
-	s = strings.ReplaceAll(s, "<", "&lt;")
-	s = strings.ReplaceAll(s, ">", "&gt;")
-	s = strings.ReplaceAll(s, `"`, "&#34;")
-	return s
-}

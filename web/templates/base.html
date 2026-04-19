@@ -1,0 +1,39 @@
+{{define "base"}}<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ALTO – Audio Library Transcode Organizer</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+  <script src="/static/js/htmx.min.js" defer></script>
+  <script src="/static/js/htmx-ext-sse.min.js" defer></script>
+</head>
+<body>
+<div class="app-shell">
+
+  <header class="app-header">
+    <img class="app-logo" src="/static/logo.svg" alt="ALTO logo">
+    <span class="app-title">ALTO</span>
+    <span class="header-spacer"></span>
+    <span id="scan-indicator" class="scan-status htmx-indicator">
+      <span class="spinner"></span> Scanning…
+    </span>
+    <button class="btn btn-ghost"
+            hx-post="/api/scan"
+            hx-indicator="#scan-indicator"
+            title="Re-index all libraries">
+      ↻ Re-index
+    </button>
+  </header>
+
+  <aside class="app-sidebar">
+    {{template "sidebar" .}}
+  </aside>
+
+  <main class="app-content" id="content-area">
+    {{template "content" .}}
+  </main>
+
+</div>
+</body>
+</html>{{end}}

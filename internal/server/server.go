@@ -23,9 +23,10 @@ type LibraryConfig struct {
 
 // Config is the server configuration.
 type Config struct {
-	Libraries []LibraryConfig
-	OutputDir string
-	CacheDir  string
+	Libraries   []LibraryConfig
+	OutputDir   string
+	CacheDir    string
+	TemplateDir string // defaults to "web/templates"
 }
 
 // ScanEvent represents a scan lifecycle event broadcast over SSE.
@@ -109,12 +110,16 @@ type Server struct {
 
 // New creates a new Server and registers all routes.
 func New(database *db.DB, scanner LibraryScanner, cfg Config) *Server {
+	tmplDir := cfg.TemplateDir
+	if tmplDir == "" {
+		tmplDir = "web/templates"
+	}
 	s := &Server{
 		db:      database,
 		scanner: scanner,
 		cfg:     cfg,
 		mux:     http.NewServeMux(),
-		tmpl:    templateEngine{dir: "web/templates"},
+		tmpl:    templateEngine{dir: tmplDir},
 	}
 	s.registerRoutes()
 	return s
@@ -126,6 +131,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) registerRoutes() {
+	s.mux.HandleFunc("GET /{$}", s.handleIndex)
 	s.mux.HandleFunc("GET /api/libraries", s.handleLibraries)
 	s.mux.HandleFunc("GET /api/tree/{libraryID}", s.handleTree)
 	s.mux.HandleFunc("GET /api/tree/{libraryID}/children", s.handleTreeChildren)

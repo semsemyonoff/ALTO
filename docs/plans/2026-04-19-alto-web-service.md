@@ -116,16 +116,16 @@
 - [x] run tests - must pass before next task
 
 ### Task 5: Web UI - base layout and directory tree
-- [ ] create base HTML template (`web/templates/base.html`) with ALTO branding, logo, navigation
-- [ ] design CSS (`web/static/css/style.css`) matching logo palette: teal (#3AD4C4) primary, blue (#0FAFFF) accents, green (#7AE072) highlights, dark background for contrast
-- [ ] add HTMX (vendor `web/static/js/htmx.min.js` and `web/static/js/htmx-ext-sse.min.js` — SSE extension required for `hx-ext="sse"` used in progress/scan streaming)
-- [ ] create library selector component (dropdown/tabs for multiple libraries)
-- [ ] create directory tree component with HTMX lazy-loading (expand on click)
-- [ ] show codec icon/badge on audio directories in the tree (e.g., "FLAC", "Opus", "MP3", "Mixed")
-- [ ] implement "open in new tab" link for audio directories
-- [ ] create index page template (`web/templates/index.html`) combining tree + content area
-- [ ] write tests for template rendering (no panics, correct HTML structure)
-- [ ] run tests - must pass before next task
+- [x] create base HTML template (`web/templates/base.html`) with ALTO branding, logo, navigation
+- [x] design CSS (`web/static/css/style.css`) matching logo palette: teal (#3AD4C4) primary, blue (#0FAFFF) accents, green (#7AE072) highlights, dark background for contrast
+- [x] add HTMX (vendor `web/static/js/htmx.min.js` and `web/static/js/htmx-ext-sse.min.js` — SSE extension required for `hx-ext="sse"` used in progress/scan streaming)
+- [x] create library selector component (dropdown/tabs for multiple libraries)
+- [x] create directory tree component with HTMX lazy-loading (expand on click)
+- [x] show codec icon/badge on audio directories in the tree (e.g., "FLAC", "Opus", "MP3", "Mixed")
+- [x] implement "open in new tab" link for audio directories
+- [x] create index page template (`web/templates/index.html`) combining tree + content area
+- [x] write tests for template rendering (no panics, correct HTML structure)
+- [x] run tests - must pass before next task
 
 ### Task 6: Web UI - audio directory page
 - [ ] create audio directory template (`web/templates/directory.html`)
