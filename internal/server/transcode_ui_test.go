@@ -153,6 +153,18 @@ func TestTranscodeForm_RenderedWithTracks(t *testing.T) {
 	if !strings.Contains(body, "tc_custom_params") {
 		t.Error("expect tc_custom_params element")
 	}
+	if !strings.Contains(body, "tc_custom_flac") {
+		t.Error("expect FLAC-specific custom params section")
+	}
+	if !strings.Contains(body, "tc_custom_opus") {
+		t.Error("expect Opus-specific custom params section")
+	}
+	if !strings.Contains(body, "tc_file_counter") {
+		t.Error("expect transcode progress track counter element")
+	}
+	if !strings.Contains(body, "library-select") || !strings.Contains(body, "tree-root") {
+		t.Error("expect direct /dir page to render the full app shell")
+	}
 }
 
 // TestTranscodeForm_NotRenderedWithoutTracks verifies that a directory page
@@ -181,6 +193,46 @@ func TestTranscodeForm_NotRenderedWithoutTracks(t *testing.T) {
 	}
 	if strings.Contains(body, `id="transcode-panel"`) {
 		t.Error("transcode-panel element must not be rendered when directory has no tracks")
+	}
+}
+
+func TestTranscodeForm_NotRenderedForLossyTracks(t *testing.T) {
+	srv, database, libDir := newTestServerWithRealTemplates(t)
+	libID := srv.cfg.Libraries[0].ID
+
+	absPath := filepath.Join(libDir, "LossyDir")
+	mkdirAll(t, absPath)
+	dirID, err := database.UpsertDirectory(libID, "LossyDir", "MP3", false, "")
+	if err != nil {
+		t.Fatalf("UpsertDirectory: %v", err)
+	}
+	if err := database.UpsertTrack(db.Track{
+		DirectoryID: dirID,
+		Filename:    "track.mp3",
+		Codec:       "mp3",
+		Bitrate:     320_000,
+		Duration:    180.0,
+		SampleRate:  44100,
+		Channels:    2,
+		Size:        7_200_000,
+	}); err != nil {
+		t.Fatalf("UpsertTrack: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, apiURL("/dir", map[string]string{"path": absPath}), nil)
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d: %s", w.Code, w.Body.String())
+	}
+	body := w.Body.String()
+
+	if strings.Contains(body, `id="transcode-btn"`) {
+		t.Error("transcode-btn element must not be rendered for lossy directories")
+	}
+	if strings.Contains(body, `id="transcode-panel"`) {
+		t.Error("transcode-panel element must not be rendered for lossy directories")
 	}
 }
 
@@ -270,15 +322,15 @@ func TestTranscodeForm_OutputModeLabels(t *testing.T) {
 	srv, database, libDir := newTestServerWithRealTemplates(t)
 	libID := srv.cfg.Libraries[0].ID
 
-	absPath := filepath.Join(libDir, "EDM")
+	absPath := filepath.Join(libDir, "Archive")
 	mkdirAll(t, absPath)
-	dirID, err := database.UpsertDirectory(libID, "EDM", "Opus", false, "")
+	dirID, err := database.UpsertDirectory(libID, "Archive", "FLAC", false, "")
 	if err != nil {
 		t.Fatalf("UpsertDirectory: %v", err)
 	}
 	database.UpsertTrack(db.Track{ //nolint:errcheck
-		DirectoryID: dirID, Filename: "beat.opus", Codec: "opus",
-		Bitrate: 160_000, Duration: 240.0, SampleRate: 48000, Channels: 2, Size: 4_800_000,
+		DirectoryID: dirID, Filename: "song.flac", Codec: "flac",
+		Bitrate: 900_000, Duration: 240.0, SampleRate: 48000, Channels: 2, Size: 24_800_000,
 	})
 
 	req := httptest.NewRequest(http.MethodGet, apiURL("/dir", map[string]string{"path": absPath}), nil)
@@ -293,8 +345,8 @@ func TestTranscodeForm_OutputModeLabels(t *testing.T) {
 	if !strings.Contains(body, "Shared /out") {
 		t.Error("expect 'Shared /out' output mode label")
 	}
-	if !strings.Contains(body, ".alto-out/") {
-		t.Error("expect '.alto-out/' in local output mode label")
+	if !strings.Contains(body, "alto-out/") {
+		t.Error("expect 'alto-out/' in local output mode label")
 	}
 	if !strings.Contains(body, "Replace") {
 		t.Error("expect 'Replace' output mode label")

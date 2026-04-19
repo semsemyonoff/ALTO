@@ -118,13 +118,13 @@ func TestScanUI_ReindexOfferRendered(t *testing.T) {
 
 	absPath := filepath.Join(libDir, "Rock")
 	mkdirAll(t, absPath)
-	dirID, err := database.UpsertDirectory(libID, "Rock", "MP3", false, "")
+	dirID, err := database.UpsertDirectory(libID, "Rock", "FLAC", false, "")
 	if err != nil {
 		t.Fatalf("UpsertDirectory: %v", err)
 	}
 	database.UpsertTrack(db.Track{ //nolint:errcheck
-		DirectoryID: dirID, Filename: "song.mp3", Codec: "mp3",
-		Bitrate: 320_000, Duration: 180.0, SampleRate: 44100, Channels: 2, Size: 7_200_000,
+		DirectoryID: dirID, Filename: "song.flac", Codec: "flac",
+		Bitrate: 900_000, Duration: 180.0, SampleRate: 44100, Channels: 2, Size: 27_200_000,
 	})
 
 	req := httptest.NewRequest(http.MethodGet, apiURL("/dir", map[string]string{"path": absPath}), nil)

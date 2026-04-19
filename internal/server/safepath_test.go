@@ -18,6 +18,9 @@ func TestLibraryOnlyValidate(t *testing.T) {
 	altoOutDir := filepath.Join(libRoot, ".alto-out")
 	mkdirAll(t, altoOutDir)
 
+	visibleAltoOutDir := filepath.Join(libRoot, "alto-out")
+	mkdirAll(t, visibleAltoOutDir)
+
 	altoTmpDir := filepath.Join(libRoot, ".alto-tmp-abc123")
 	mkdirAll(t, altoTmpDir)
 
@@ -48,6 +51,11 @@ func TestLibraryOnlyValidate(t *testing.T) {
 			name:    "path in different root",
 			path:    otherRoot,
 			wantErr: ErrOutsideRoot,
+		},
+		{
+			name:    "visible alto-out segment",
+			path:    visibleAltoOutDir,
+			wantErr: ErrAltoSegment,
 		},
 		{
 			name:    ".alto-out segment",
@@ -217,6 +225,8 @@ func TestContainsAltoPathSegment(t *testing.T) {
 		path string
 		want bool
 	}{
+		{"/music/alto-out", true},
+		{"/music/alto-out/sub", true},
 		{"/music/.alto-out", true},
 		{"/music/.alto-out/sub", true},
 		{"/music/.alto-tmp-abc", true},

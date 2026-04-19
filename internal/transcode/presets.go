@@ -8,13 +8,15 @@ const (
 	CodecOpus Codec = "opus"
 )
 
+const LocalOutputDirName = "alto-out"
+
 // OutputMode determines where transcoded files are placed.
 type OutputMode string
 
 const (
 	// OutputShared mirrors the library path structure under ALTO_OUTPUT_DIR.
 	OutputShared OutputMode = "shared"
-	// OutputLocal creates a .alto-out/ subdirectory inside the source directory.
+	// OutputLocal creates an alto-out/ subdirectory inside the source directory.
 	OutputLocal OutputMode = "local"
 	// OutputReplace performs atomic in-place file replacement with rollback.
 	OutputReplace OutputMode = "replace"
@@ -31,7 +33,7 @@ type Preset struct {
 	ExtraArgs        []string // additional ffmpeg arguments inserted before output
 }
 
-// FLAC presets — all have verify semantics and copy metadata/cover by default.
+// FLAC presets — output is verified after encode and metadata/cover are copied by default.
 var (
 	FLACFast     = Preset{Name: "Fast", Codec: CodecFLAC, CompressionLevel: 0, CopyMetadata: true, CopyCover: true}
 	FLACBalanced = Preset{Name: "Balanced", Codec: CodecFLAC, CompressionLevel: 5, CopyMetadata: true, CopyCover: true}

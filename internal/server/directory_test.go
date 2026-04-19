@@ -445,6 +445,9 @@ func TestBuildDirPageData(t *testing.T) {
 	if data.CodecClass != "codec-flac" {
 		t.Errorf("CodecClass want 'codec-flac', got %q", data.CodecClass)
 	}
+	if !data.CanTranscode {
+		t.Error("CanTranscode should be true for lossless tracks")
+	}
 	if data.TrackCount != 1 {
 		t.Errorf("TrackCount want 1, got %d", data.TrackCount)
 	}
@@ -466,6 +469,21 @@ func TestBuildDirPageData(t *testing.T) {
 	}
 	if data.PathEncoded == "" {
 		t.Error("PathEncoded should not be empty")
+	}
+}
+
+func TestBuildDirPageData_LossyTracksCannotTranscode(t *testing.T) {
+	data := buildDirPageData(
+		LibraryConfig{ID: 1, Name: "Music", Path: "/music"},
+		&db.Directory{ID: 5, LibraryID: 1, Path: "Lossy", CodecSummary: "MP3"},
+		[]db.Track{
+			{DirectoryID: 5, Filename: "song.mp3", Codec: "mp3", Bitrate: 320000, Duration: 200.0, SampleRate: 44100, Channels: 2, Size: 8000000},
+		},
+		"/music/Lossy",
+	)
+
+	if data.CanTranscode {
+		t.Error("CanTranscode should be false for lossy tracks")
 	}
 }
 

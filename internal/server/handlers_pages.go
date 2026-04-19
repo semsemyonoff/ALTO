@@ -184,8 +184,16 @@ type trackRow struct {
 	Size       string
 }
 
+// appShellData is the shared shell state for pages rendered inside the main app layout.
+type appShellData struct {
+	Libraries   []db.Library
+	SelectedID  int64
+	TopDirsHTML template.HTML // pre-rendered tree node HTML
+}
+
 // dirPageData is the template data for the audio directory detail page.
 type dirPageData struct {
+	appShellData
 	Path         string // absolute resolved path (for cover URL)
 	PathEncoded  string // URL-encoded path
 	LibraryID    int64
@@ -194,8 +202,37 @@ type dirPageData struct {
 	HasCover     bool
 	CodecSummary string
 	CodecClass   string
+	CanTranscode bool
 	TrackCount   int
 	Tracks       []trackRow
+}
+
+func isLosslessCodec(codec string) bool {
+	switch normalized := strings.ToLower(strings.TrimSpace(codec)); {
+	case normalized == "":
+		return false
+	case strings.HasPrefix(normalized, "pcm_"):
+		return true
+	}
+
+	switch strings.ToLower(strings.TrimSpace(codec)) {
+	case "flac", "alac", "ape", "wavpack", "tta", "truehd", "mlp":
+		return true
+	default:
+		return false
+	}
+}
+
+func canTranscodeTracks(tracks []db.Track) bool {
+	if len(tracks) == 0 {
+		return false
+	}
+	for _, t := range tracks {
+		if !isLosslessCodec(t.Codec) {
+			return false
+		}
+	}
+	return true
 }
 
 // fmtBitrate formats a bitrate in bits/sec to a human-readable string (e.g. "320 kbps").
@@ -259,6 +296,51 @@ func fmtSize(bytes int64) string {
 	}
 }
 
+// buildAppShellData loads the current library selector state and the root tree nodes
+// for the selected library. If selectedID is zero, the first configured library is used.
+func (s *Server) buildAppShellData(selectedID int64) (appShellData, error) {
+	libs, err := s.db.GetLibraries()
+	if err != nil {
+		return appShellData{}, err
+	}
+
+	data := appShellData{
+		Libraries:  libs,
+		SelectedID: selectedID,
+	}
+	if len(libs) == 0 {
+		return data, nil
+	}
+
+	if data.SelectedID == 0 {
+		data.SelectedID = libs[0].ID
+	}
+
+	libCfg, ok := findLibConfigByID(s.cfg, data.SelectedID)
+	if !ok {
+		return data, nil
+	}
+
+	dirs, err := s.db.GetDirectoryChildren(data.SelectedID, "")
+	if err != nil {
+		slog.Error("buildAppShellData: GetDirectoryChildren", "library_id", data.SelectedID, "err", err)
+		return data, nil
+	}
+
+	nodes := make([]TreeNodeData, len(dirs))
+	for i, d := range dirs {
+		nodes[i] = buildTreeNodeData(libCfg, d)
+	}
+
+	rendered, err := renderTreeNodes(nodes)
+	if err != nil {
+		slog.Error("buildAppShellData: renderTreeNodes", "library_id", data.SelectedID, "err", err)
+		return data, nil
+	}
+	data.TopDirsHTML = rendered
+	return data, nil
+}
+
 // buildDirPageData constructs dirPageData for the template.
 func buildDirPageData(lib LibraryConfig, dir *db.Directory, tracks []db.Track, resolvedPath string) dirPageData {
 	rows := make([]trackRow, len(tracks))
@@ -283,6 +365,7 @@ func buildDirPageData(lib LibraryConfig, dir *db.Directory, tracks []db.Track, r
 		HasCover:     dir.HasCover,
 		CodecSummary: dir.CodecSummary,
 		CodecClass:   codecClass(dir.CodecSummary),
+		CanTranscode: canTranscodeTracks(tracks),
 		TrackCount:   len(tracks),
 		Tracks:       rows,
 	}
@@ -326,6 +409,13 @@ func (s *Server) handleDirPage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	data := buildDirPageData(lib, dir, tracks, resolved)
+	shell, err := s.buildAppShellData(lib.ID)
+	if err != nil {
+		slog.Error("handleDirPage: buildAppShellData", "err", err)
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+	data.appShellData = shell
 	s.tmpl.render(w, "directory.html", data)
 }
 
@@ -333,48 +423,19 @@ func (s *Server) handleDirPage(w http.ResponseWriter, r *http.Request) {
 
 // indexPageData is the template data for the index page.
 type indexPageData struct {
-	Libraries   []db.Library
-	SelectedID  int64
-	TopDirsHTML template.HTML // pre-rendered tree node HTML
+	appShellData
 }
 
 // handleIndex renders the main application page.
 // GET /{$}
 func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
-	libs, err := s.db.GetLibraries()
+	shell, err := s.buildAppShellData(0)
 	if err != nil {
-		slog.Error("handleIndex: GetLibraries", "err", err)
+		slog.Error("handleIndex: buildAppShellData", "err", err)
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
 
-	data := indexPageData{
-		Libraries: libs,
-	}
-
-	if len(libs) > 0 {
-		selected := libs[0]
-		data.SelectedID = selected.ID
-
-		libCfg, ok := findLibConfigByID(s.cfg, selected.ID)
-		if ok {
-			dirs, err := s.db.GetDirectoryChildren(selected.ID, "")
-			if err != nil {
-				slog.Error("handleIndex: GetDirectoryChildren", "err", err)
-			} else {
-				nodes := make([]TreeNodeData, len(dirs))
-				for i, d := range dirs {
-					nodes[i] = buildTreeNodeData(libCfg, d)
-				}
-				rendered, err := renderTreeNodes(nodes)
-				if err != nil {
-					slog.Error("handleIndex: renderTreeNodes", "err", err)
-				} else {
-					data.TopDirsHTML = rendered
-				}
-			}
-		}
-	}
-
+	data := indexPageData{appShellData: shell}
 	s.tmpl.render(w, "index.html", data)
 }

@@ -19,9 +19,9 @@ var bitrateRe = regexp.MustCompile(`^[0-9]+k?$`)
 // transcodeRequest is the JSON body for POST /api/transcode.
 type transcodeRequest struct {
 	Path       string `json:"path"`
-	Codec      string `json:"codec"`        // "flac" or "opus"
-	Preset     string `json:"preset"`       // preset name (optional if custom params given)
-	OutputMode string `json:"output_mode"`  // "shared", "local", "replace"
+	Codec      string `json:"codec"`       // "flac" or "opus"
+	Preset     string `json:"preset"`      // preset name (optional if custom params given)
+	OutputMode string `json:"output_mode"` // "shared", "local", "replace"
 	// Custom override fields (all optional; ignored when Preset matches a named preset).
 	CompressionLevel *int   `json:"compression_level,omitempty"`
 	Bitrate          string `json:"bitrate,omitempty"`
@@ -81,6 +81,10 @@ func (s *Server) handleTranscodeStart(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "no tracks found in directory", http.StatusUnprocessableEntity)
 		return
 	}
+	if !canTranscodeTracks(tracks) {
+		http.Error(w, "transcoding is available only for directories with lossless tracks", http.StatusUnprocessableEntity)
+		return
+	}
 
 	preset, err := resolvePreset(req)
 	if err != nil {
@@ -122,7 +126,7 @@ func (s *Server) handleTranscodeStart(w http.ResponseWriter, r *http.Request) {
 			}
 			outDir = filepath.Join(s.cfg.OutputDir, lib.Name, rel)
 		case transcode.OutputLocal:
-			outDir = filepath.Join(resolved, ".alto-out")
+			outDir = filepath.Join(resolved, transcode.LocalOutputDirName)
 		}
 		if _, err := DestinationValidate(outDir, s.libRoots(), s.cfg.OutputDir); err != nil {
 			WritePathError(w, err)
@@ -213,13 +217,15 @@ func (s *Server) handleTranscodeProgress(w http.ResponseWriter, r *http.Request)
 				return
 			}
 			overall := calcOverallPercent(p)
+			currentFileNumber := p.FileIndex + 1
 			data, _ := json.Marshal(map[string]any{
-				"current_file":    p.CurrentFile,
-				"file_index":      p.FileIndex,
-				"total_files":     p.TotalFiles,
-				"file_percent":    p.FilePercent,
-				"overall_percent": overall,
-				"status":          "running",
+				"current_file":        p.CurrentFile,
+				"file_index":          p.FileIndex,
+				"current_file_number": currentFileNumber,
+				"total_files":         p.TotalFiles,
+				"file_percent":        p.FilePercent,
+				"overall_percent":     overall,
+				"status":              "running",
 			})
 			_, _ = fmt.Fprintf(w, "event: progress\ndata: %s\n\n", data)
 			flusher.Flush()

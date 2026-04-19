@@ -69,7 +69,7 @@ func TestBuildFLACArgs(t *testing.T) {
 			preset: FLACFast,
 			wantArgs: []string{
 				"ffmpeg", "-i", in,
-				"-c:a", "flac", "-compression_level", "0", "-verify",
+				"-c:a", "flac", "-compression_level", "0",
 				"-map_metadata", "0", "-c:v", "copy",
 				"-y", out,
 			},
@@ -79,7 +79,7 @@ func TestBuildFLACArgs(t *testing.T) {
 			preset: FLACBalanced,
 			wantArgs: []string{
 				"ffmpeg", "-i", in,
-				"-c:a", "flac", "-compression_level", "5", "-verify",
+				"-c:a", "flac", "-compression_level", "5",
 				"-map_metadata", "0", "-c:v", "copy",
 				"-y", out,
 			},
@@ -89,7 +89,7 @@ func TestBuildFLACArgs(t *testing.T) {
 			preset: FLACMax,
 			wantArgs: []string{
 				"ffmpeg", "-i", in,
-				"-c:a", "flac", "-compression_level", "8", "-verify",
+				"-c:a", "flac", "-compression_level", "8",
 				"-map_metadata", "0", "-c:v", "copy",
 				"-y", out,
 			},
@@ -99,7 +99,7 @@ func TestBuildFLACArgs(t *testing.T) {
 			preset: Preset{Codec: CodecFLAC, CompressionLevel: 5},
 			wantArgs: []string{
 				"ffmpeg", "-i", in,
-				"-c:a", "flac", "-compression_level", "5", "-verify",
+				"-c:a", "flac", "-compression_level", "5",
 				"-y", out,
 			},
 		},
@@ -214,7 +214,7 @@ func TestCalcOutputDir(t *testing.T) {
 				OutputMode: OutputLocal,
 				SourceDir:  "/library/music/Artist/Album",
 			},
-			want: "/library/music/Artist/Album/.alto-out",
+			want: "/library/music/Artist/Album/alto-out",
 		},
 	}
 	for _, tc := range tests {
@@ -243,12 +243,17 @@ func TestTranscodeLocalOut(t *testing.T) {
 	}
 
 	var capturedArgs [][]string
+	var verifiedPaths []string
 	e := &Engine{
 		ffmpegBin: "ffmpeg",
 		ffmpegRun: func(ctx context.Context, args []string, progressFn func(string)) error {
 			capturedArgs = append(capturedArgs, args)
 			// Create the output file so the job sees a result.
 			return os.WriteFile(args[len(args)-1], []byte("transcoded"), 0o644)
+		},
+		probeFile: func(ctx context.Context, path string) error {
+			verifiedPaths = append(verifiedPaths, path)
+			return nil
 		},
 		diskAvail: func(string) (uint64, error) { return 1 << 30, nil },
 	}
@@ -268,7 +273,7 @@ func TestTranscodeLocalOut(t *testing.T) {
 		t.Fatalf("Transcode: %v", err)
 	}
 
-	expectedOutDir := filepath.Join(srcDir, ".alto-out")
+	expectedOutDir := filepath.Join(srcDir, LocalOutputDirName)
 
 	// ffmpeg called once per audio file.
 	if len(capturedArgs) != 2 {
@@ -284,6 +289,14 @@ func TestTranscodeLocalOut(t *testing.T) {
 		got := capturedArgs[i][len(capturedArgs[i])-1]
 		if got != want {
 			t.Errorf("call %d output = %q, want %q", i, got, want)
+		}
+	}
+	if len(verifiedPaths) != len(wantPaths) {
+		t.Fatalf("expected %d verification calls, got %d", len(wantPaths), len(verifiedPaths))
+	}
+	for i, want := range wantPaths {
+		if verifiedPaths[i] != want {
+			t.Errorf("verify call %d path = %q, want %q", i, verifiedPaths[i], want)
 		}
 	}
 
@@ -321,6 +334,7 @@ func TestTranscodeSharedOut(t *testing.T) {
 			capturedOutput = args[len(args)-1]
 			return os.WriteFile(capturedOutput, []byte("transcoded"), 0o644)
 		},
+		probeFile: func(ctx context.Context, path string) error { return nil },
 		diskAvail: func(string) (uint64, error) { return 1 << 30, nil },
 	}
 
@@ -526,6 +540,7 @@ func TestTranscodeProgress(t *testing.T) {
 			progressFn("frame=20 size=200kB time=00:01:00.00 bitrate=128kbits/s")
 			return os.WriteFile(args[len(args)-1], []byte("done"), 0o644)
 		},
+		probeFile: func(ctx context.Context, path string) error { return nil },
 		diskAvail: func(string) (uint64, error) { return 1 << 30, nil },
 	}
 

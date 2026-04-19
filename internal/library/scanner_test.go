@@ -177,10 +177,11 @@ func TestScannerIndexesAncestorsForNestedAudioDirectories(t *testing.T) {
 func TestScannerExcludesAltoDirs(t *testing.T) {
 	root := makeTestTree(t, map[string][]string{
 		"Music":                  {"song.flac"},
-		"Music/.alto-out":        {"output.flac"}, // must be excluded
-		"Music/.alto-tmp-abc123": {"temp.flac"},   // must be excluded
-		"Music/.alto-backup-abc": {"backup.flac"}, // must be excluded
-		"out":                    {"user.flac"},   // regular user dir — must be included
+		"Music/alto-out":         {"output-visible.flac"}, // must be excluded
+		"Music/.alto-out":        {"output.flac"},         // must be excluded
+		"Music/.alto-tmp-abc123": {"temp.flac"},           // must be excluded
+		"Music/.alto-backup-abc": {"backup.flac"},         // must be excluded
+		"out":                    {"user.flac"},           // regular user dir — must be included
 	})
 
 	database := openTestDB(t)
@@ -645,11 +646,11 @@ func TestIsAltoDir(t *testing.T) {
 		name string
 		want bool
 	}{
+		{"alto-out", true},
 		{".alto-out", true},
 		{".alto-tmp-abc", true},
 		{".alto-backup-123", true},
 		{".alto-", true},
-		{"alto-out", false},
 		{"out", false},
 		{".alto", false}, // exactly ".alto" — no dash suffix
 		{"Music", false},

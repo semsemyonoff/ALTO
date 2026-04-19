@@ -152,7 +152,7 @@ func TestHandleTranscodeStart_AltoStarPath(t *testing.T) {
 	srv, _, libDir, _ := newTestServerWithEngine(t, eng)
 
 	body := map[string]any{
-		"path":        libDir + "/.alto-out",
+		"path":        libDir + "/alto-out",
 		"preset":      "Balanced",
 		"output_mode": "shared",
 	}
@@ -163,7 +163,40 @@ func TestHandleTranscodeStart_AltoStarPath(t *testing.T) {
 	srv.handleTranscodeStart(w, req)
 
 	if w.Code != http.StatusForbidden {
-		t.Fatalf("expected 403 for .alto-* path, got %d", w.Code)
+		t.Fatalf("expected 403 for app-owned path, got %d", w.Code)
+	}
+}
+
+func TestHandleTranscodeStart_LossyDirectoryRejected(t *testing.T) {
+	eng := &mockEngine{}
+	srv, database, _, dirPath := newTestServerWithEngine(t, eng)
+
+	dir, err := database.GetDirectoryByPath(srv.cfg.Libraries[0].ID, "album1")
+	if err != nil {
+		t.Fatalf("GetDirectoryByPath: %v", err)
+	}
+	if dir == nil {
+		t.Fatal("directory should exist")
+	}
+	if err := database.UpsertTrack(db.Track{DirectoryID: dir.ID, Filename: "track1.flac", Codec: "mp3", Bitrate: 320000, Duration: 10.0, SampleRate: 44100, Channels: 2, Size: 1000}); err != nil {
+		t.Fatalf("UpsertTrack: %v", err)
+	}
+	if _, err := database.UpsertDirectory(srv.cfg.Libraries[0].ID, "album1", "MP3", false, ""); err != nil {
+		t.Fatalf("UpsertDirectory: %v", err)
+	}
+
+	body := map[string]any{"path": dirPath, "preset": "Balanced", "output_mode": "shared"}
+	b, _ := json.Marshal(body)
+	req := httptest.NewRequest(http.MethodPost, "/api/transcode", bytes.NewReader(b))
+	w := httptest.NewRecorder()
+
+	srv.handleTranscodeStart(w, req)
+
+	if w.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("expected 422, got %d: %s", w.Code, w.Body.String())
+	}
+	if !strings.Contains(w.Body.String(), "lossless") {
+		t.Fatalf("expected lossless rejection message, got %s", w.Body.String())
 	}
 }
 
@@ -326,6 +359,9 @@ func TestHandleTranscodeProgress_LiveStream(t *testing.T) {
 		srv.handleTranscodeProgress(progW, progReq)
 	}()
 
+	// Give the SSE handler time to subscribe before the job exits.
+	time.Sleep(50 * time.Millisecond)
+
 	// Unblock the engine so the job finishes and SSE stream closes.
 	close(block)
 
@@ -337,6 +373,12 @@ func TestHandleTranscodeProgress_LiveStream(t *testing.T) {
 
 	if !strings.Contains(progW.Body.String(), "event: done") {
 		t.Errorf("expected 'event: done', got: %s", progW.Body.String())
+	}
+	if !strings.Contains(progW.Body.String(), `"current_file_number":1`) {
+		t.Errorf("expected current_file_number in progress payload, got: %s", progW.Body.String())
+	}
+	if !strings.Contains(progW.Body.String(), `"total_files":1`) {
+		t.Errorf("expected total_files in progress payload, got: %s", progW.Body.String())
 	}
 }
 

@@ -15,6 +15,7 @@ import (
 	"sync"
 
 	"github.com/semsemyonoff/ALTO/internal/db"
+	"github.com/semsemyonoff/ALTO/internal/transcode"
 )
 
 // audioExtensions is the set of file extensions recognised as audio tracks.
@@ -268,10 +269,10 @@ func ancestorPaths(rel string) []string {
 
 // isAltoDir returns true if the directory name is an app-owned dir.
 func isAltoDir(name string) bool {
-	return name == ".alto-out" || strings.HasPrefix(name, ".alto-")
+	return name == transcode.LocalOutputDirName || name == ".alto-out" || strings.HasPrefix(name, ".alto-")
 }
 
-// containsAltoSegment returns true if any path segment (below libRoot) starts with ".alto-".
+// containsAltoSegment returns true if any path segment (below libRoot) is app-owned.
 func containsAltoSegment(path, libRoot string) bool {
 	rel, err := filepath.Rel(libRoot, path)
 	if err != nil {

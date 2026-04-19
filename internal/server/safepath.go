@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+
+	"github.com/semsemyonoff/ALTO/internal/transcode"
 )
 
 // Path security errors.
@@ -115,7 +117,7 @@ func containsAltoPathSegment(path string) bool {
 	vol := filepath.VolumeName(path)
 	rest := path[len(vol):]
 	for seg := range strings.SplitSeq(rest, string(filepath.Separator)) {
-		if seg == ".alto-out" || strings.HasPrefix(seg, ".alto-") {
+		if seg == transcode.LocalOutputDirName || seg == ".alto-out" || strings.HasPrefix(seg, ".alto-") {
 			return true
 		}
 	}

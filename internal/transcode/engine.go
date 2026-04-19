@@ -122,7 +122,7 @@ func calcOutputDir(job Job) (string, error) {
 		}
 		return out, nil
 	case OutputLocal:
-		return filepath.Join(job.SourceDir, ".alto-out"), nil
+		return filepath.Join(job.SourceDir, LocalOutputDirName), nil
 	default:
 		return "", fmt.Errorf("unsupported output mode for calcOutputDir: %s", job.OutputMode)
 	}
@@ -160,6 +160,9 @@ func (e *Engine) transcodeToDir(ctx context.Context, job Job, outDir string, pro
 		slog.Info("transcoding file", "file", fi.Name, "output", outPath)
 		if err := e.ffmpegRun(ctx, args, makeProgressFn(fi, i, len(job.Files), progress)); err != nil {
 			return fmt.Errorf("transcode %s: %w", fi.Name, err)
+		}
+		if err := e.probeFile(ctx, outPath); err != nil {
+			return fmt.Errorf("output verification failed for %s: %w", fi.Name, err)
 		}
 	}
 	copyNonAudioFiles(job.SourceDir, outDir)
@@ -335,12 +338,12 @@ func makeProgressFn(fi FileInfo, fileIdx, totalFiles int, progress chan<- Progre
 }
 
 // BuildFLACArgs returns the ffmpeg arguments for FLAC transcoding.
+// Output verification is performed separately via ffprobe after encoding.
 func BuildFLACArgs(ffmpegBin, input, output string, preset Preset) []string {
 	args := []string{
 		ffmpegBin, "-i", input,
 		"-c:a", "flac",
 		"-compression_level", strconv.Itoa(preset.CompressionLevel),
-		"-verify",
 	}
 	if preset.CopyMetadata {
 		args = append(args, "-map_metadata", "0")
