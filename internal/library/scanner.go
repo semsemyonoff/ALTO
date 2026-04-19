@@ -149,6 +149,11 @@ func (s *Scanner) Scan(ctx context.Context, lib db.Library) error {
 			return nil
 		}
 		rel = filepath.ToSlash(rel)
+		// Normalize "." (library root itself) to "" so it matches the convention
+		// used by findLibraryForPath in the server, which also normalizes to "".
+		if rel == "." {
+			rel = ""
+		}
 
 		scannedPaths = append(scannedPaths, rel)
 		dirToFiles[rel] = audioFiles
@@ -227,10 +232,12 @@ func containsAltoSegment(path, libRoot string) bool {
 // resolveCover returns the cover art path and whether cover art was found.
 // It checks external files first; if none, it tries embedded art extraction.
 func (s *Scanner) resolveCover(ctx context.Context, dirPath string, audioFiles []string, libID int64, relPath string) (string, bool) {
-	// Check for external cover art files.
+	// Check for external cover art files. Use Lstat to reject symlinks — following
+	// symlinks here would allow a crafted cover.jpg -> /etc/passwd to be indexed
+	// and later served through /api/cover.
 	for _, name := range externalCoverNames {
 		candidate := filepath.Join(dirPath, name)
-		if _, err := os.Stat(candidate); err == nil {
+		if fi, err := os.Lstat(candidate); err == nil && fi.Mode().IsRegular() {
 			return candidate, true
 		}
 	}

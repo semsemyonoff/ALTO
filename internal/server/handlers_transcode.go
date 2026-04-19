@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -103,11 +104,19 @@ func (s *Server) handleTranscodeStart(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Resolve the library root the same way LibraryOnlyValidate resolved SourceDir,
+	// so filepath.Rel(LibraryRoot, SourceDir) in the transcode engine is comparing
+	// two symlink-free absolute paths rather than a raw config path vs a resolved one.
+	resolvedLibRoot, err := filepath.EvalSymlinks(lib.Path)
+	if err != nil {
+		resolvedLibRoot = filepath.Clean(lib.Path)
+	}
+
 	id := newJobID()
 	job := transcode.Job{
 		ID:          id,
 		LibraryName: lib.Name,
-		LibraryRoot: lib.Path,
+		LibraryRoot: resolvedLibRoot,
 		SourceDir:   resolved,
 		Files:       files,
 		Preset:      preset,

@@ -8,6 +8,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"syscall"
 
 	"github.com/semsemyonoff/ALTO/internal/db"
 )
@@ -298,9 +299,16 @@ func (s *Server) handleCover(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Open cover file from trusted DB path (may be in library dir or cache dir).
-	f, err := os.Open(dir.CoverPath)
+	// Open cover file with O_NOFOLLOW to prevent TOCTOU: if cover.jpg was replaced
+	// with a symlink after scan-time Lstat validation, this call fails with ELOOP
+	// rather than following the symlink to an arbitrary file.
+	fd, err := syscall.Open(dir.CoverPath, syscall.O_RDONLY|syscall.O_NOFOLLOW, 0)
 	if err != nil {
+		http.Error(w, "cover not found", http.StatusNotFound)
+		return
+	}
+	f := os.NewFile(uintptr(fd), dir.CoverPath)
+	if f == nil {
 		http.Error(w, "cover not found", http.StatusNotFound)
 		return
 	}
