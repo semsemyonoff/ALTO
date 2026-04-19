@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"io/fs"
 	"log/slog"
 	"os"
 	"os/exec"
@@ -394,6 +395,10 @@ func copyNonAudioFiles(srcDir, dstDir string) {
 	}
 	for _, entry := range entries {
 		if entry.IsDir() {
+			continue
+		}
+		// Skip symlinks: following them could expose arbitrary files outside the library.
+		if entry.Type()&fs.ModeSymlink != 0 {
 			continue
 		}
 		name := entry.Name()

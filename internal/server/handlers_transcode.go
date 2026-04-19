@@ -112,6 +112,25 @@ func (s *Server) handleTranscodeStart(w http.ResponseWriter, r *http.Request) {
 		resolvedLibRoot = filepath.Clean(lib.Path)
 	}
 
+	// Validate the output directory before starting the job.
+	if outputMode != transcode.OutputReplace {
+		var outDir string
+		switch outputMode {
+		case transcode.OutputShared:
+			if s.cfg.OutputDir == "" {
+				http.Error(w, "output dir not configured for shared mode", http.StatusUnprocessableEntity)
+				return
+			}
+			outDir = filepath.Join(s.cfg.OutputDir, lib.Name, rel)
+		case transcode.OutputLocal:
+			outDir = filepath.Join(resolved, ".alto-out")
+		}
+		if _, err := DestinationValidate(outDir, s.libRoots(), s.cfg.OutputDir); err != nil {
+			WritePathError(w, err)
+			return
+		}
+	}
+
 	id := newJobID()
 	job := transcode.Job{
 		ID:          id,
