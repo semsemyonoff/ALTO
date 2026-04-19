@@ -94,12 +94,12 @@
 - [x] run tests - must pass before next task
 
 ### Task 4: HTTP server and API endpoints
-- [ ] create `internal/server/server.go` with `Server` struct, router setup using `net/http` ServeMux
-- [ ] implement path safety module (`internal/server/safepath.go`) with two policies:
+- [x] create `internal/server/server.go` with `Server` struct, router setup using `net/http` ServeMux
+- [x] implement path safety module (`internal/server/safepath.go`) with two policies:
   - **library-only** (for read/source endpoints: `/api/dir`, `/api/cover`, `POST /api/transcode` source): canonicalize with `filepath.Clean` + `filepath.EvalSymlinks`, verify resolved path is within a configured library root only; additionally reject any path containing a `.alto-*` segment (`.alto-out/`, `.alto-tmp-*`, `.alto-backup-*`) — these are app-owned and must not be browsable or usable as transcode source; reject with 403 otherwise
   - **destination** (for transcode output paths): walk up to nearest existing ancestor, resolve, verify within library root or `ALTO_OUTPUT_DIR`; validate remaining segments have no `..` or symlinks
   - output dir is never a valid source/read target — prevents browsing or re-transcoding generated content
-- [ ] implement API endpoints:
+- [x] implement API endpoints:
   - `GET /api/libraries` - list all libraries
   - `GET /api/tree/{libraryID}` - full directory tree for a library (initial load)
   - `GET /api/tree/{libraryID}/children?parent=...` - children of a specific directory node (for HTMX lazy expansion); returns HTML partial of child nodes
@@ -107,13 +107,13 @@
   - `POST /api/scan` - trigger re-indexing (returns immediately, runs async); accepts optional `library_id` query param to rescan a single library (omit for full rescan); uses a single-scan lock — if a scan is already running, returns 409 Conflict with current scan status
   - `GET /api/scan/status` - SSE stream for current scan progress (connected to the one active scan; returns "idle" event if no scan running)
   - `GET /api/cover?path=...` - serve cover art for a library directory; path validated against library roots only (library-only policy); server resolves the actual image internally via `directories.cover_path` from DB — may serve an external file from the library dir or a cached extraction from `ALTO_CACHE_DIR`, but callers cannot target cache paths directly
-- [ ] implement static file serving from `web/static/` (logo, CSS, JS)
-- [ ] implement template rendering helpers
-- [ ] write tests for each API endpoint using httptest
-- [ ] write tests for read-path validation: traversal attacks (`../`), symlink escapes, paths outside library roots, valid paths within roots, `.alto-*` segments rejected (`.alto-out/`, `.alto-tmp-XXX/`, `.alto-backup-XXX/`)
-- [ ] write tests for destination-path validation: non-existent target dirs under valid roots (should pass), ancestor resolution, `..` in unresolved tail (should reject)
-- [ ] write tests for error cases (invalid paths, missing library, duplicate scan rejection with 409, etc.)
-- [ ] run tests - must pass before next task
+- [x] implement static file serving from `web/static/` (logo, CSS, JS)
+- [x] implement template rendering helpers
+- [x] write tests for each API endpoint using httptest
+- [x] write tests for read-path validation: traversal attacks (`../`), symlink escapes, paths outside library roots, valid paths within roots, `.alto-*` segments rejected (`.alto-out/`, `.alto-tmp-XXX/`, `.alto-backup-XXX/`)
+- [x] write tests for destination-path validation: non-existent target dirs under valid roots (should pass), ancestor resolution, `..` in unresolved tail (should reject)
+- [x] write tests for error cases (invalid paths, missing library, duplicate scan rejection with 409, etc.)
+- [x] run tests - must pass before next task
 
 ### Task 5: Web UI - base layout and directory tree
 - [ ] create base HTML template (`web/templates/base.html`) with ALTO branding, logo, navigation
