@@ -573,6 +573,33 @@ func TestTreeNodeTemplate_RowExcludesLabelFromExpand(t *testing.T) {
 	}
 }
 
+func TestTreeNodeTemplate_RowToggleControlsChildVisibility(t *testing.T) {
+	nd := TreeNodeData{
+		LibraryID:   1,
+		Path:        "Rock",
+		AbsPath:     "/music/Rock",
+		Basename:    "Rock",
+		IsAudioDir:  true,
+		HasChildren: true,
+	}
+
+	html, err := renderTreeNodes([]TreeNodeData{nd})
+	if err != nil {
+		t.Fatalf("renderTreeNodes: %v", err)
+	}
+	body := string(html)
+
+	if !strings.Contains(body, `var expanded=this.classList.toggle('expanded')`) {
+		t.Errorf("row toggle should update expanded state; got:\n%s", body)
+	}
+	if !strings.Contains(body, `children.hidden=!expanded`) {
+		t.Errorf("row toggle should hide child container when collapsed; got:\n%s", body)
+	}
+	if !strings.Contains(body, `<div class="tree-children" hidden></div>`) {
+		t.Errorf("branch nodes should render hidden child container by default; got:\n%s", body)
+	}
+}
+
 func TestTreeNodeTemplate_NonAudioLabelStillExpandsBranch(t *testing.T) {
 	nd := TreeNodeData{
 		LibraryID:   1,

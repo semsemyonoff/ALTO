@@ -122,14 +122,15 @@ func buildTreeNodeData(lib LibraryConfig, dir db.Directory) TreeNodeData {
 //   - Clicking the label: loads directory details into #content-area via HTMX hx-select.
 //     event.stopPropagation() prevents the row's expand trigger from also firing.
 //   - Clicking anywhere else on the row (toggle, icon, codec badge):
-//     expands/collapses children and loads child nodes into .tree-children.
+//     toggles the child container visibility; expanding also loads child nodes
+//     into .tree-children.
 var treeNodeTmpl = template.Must(template.New("tree_node").Parse(`<div class="tree-node" data-path="{{.Path}}">
   <div class="tree-node-row{{if .HasChildren}} expandable{{end}}"
        {{if .HasChildren}}hx-get="/api/tree/{{.LibraryID}}/children?parent={{.Path | urlquery}}"
        hx-target="next .tree-children"
        hx-swap="innerHTML"
        hx-trigger="click[!event.target.closest('.tree-label-link,.tree-actions')]"
-       onclick="if(!event.target.closest('.tree-label-link,.tree-actions'))this.classList.toggle('expanded')"{{end}}
+       onclick="if(!event.target.closest('.tree-label-link,.tree-actions')){var children=this.nextElementSibling; var expanded=this.classList.toggle('expanded'); if(children){children.hidden=!expanded}}"{{end}}
        title="{{.Path}}">
     {{if .HasChildren}}<span class="tree-toggle">▶</span>{{else}}<span class="tree-toggle-placeholder"></span>{{end}}
     <span class="tree-icon">{{if .HasCover}}🎵{{else}}📁{{end}}</span>
@@ -152,7 +153,7 @@ var treeNodeTmpl = template.Must(template.New("tree_node").Parse(`<div class="tr
       {{end}}
     </span>
   </div>
-  <div class="tree-children"></div>
+  <div class="tree-children"{{if .HasChildren}} hidden{{end}}></div>
 </div>
 `))
 
