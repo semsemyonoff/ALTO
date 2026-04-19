@@ -1,0 +1,66 @@
+{{define "directory.html"}}<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{.DirName}} – ALTO</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+  <script src="/static/js/htmx.min.js" defer></script>
+</head>
+<body>
+<div id="dir-content" class="dir-page">
+
+  <div class="dir-header">
+    {{if .HasCover}}
+    <img class="dir-cover" src="/api/cover?path={{.PathEncoded}}" alt="Cover art" loading="lazy">
+    {{end}}
+    <div class="dir-meta">
+      <div class="dir-breadcrumb">{{.LibraryName}}</div>
+      <h1 class="dir-title">{{.DirName}}</h1>
+      {{if .CodecSummary}}<span class="codec-badge {{.CodecClass}}">{{.CodecSummary}}</span>{{end}}
+      <div class="dir-stats">{{.TrackCount}} track{{if ne .TrackCount 1}}s{{end}}</div>
+    </div>
+  </div>
+
+  {{if .Tracks}}
+  <div class="tracks-section">
+    <table class="tracks-table">
+      <thead>
+        <tr>
+          <th class="col-num">#</th>
+          <th class="col-filename">Filename</th>
+          <th class="col-codec">Codec</th>
+          <th class="col-bitrate">Bitrate</th>
+          <th class="col-duration">Duration</th>
+          <th class="col-samplerate">Sample Rate</th>
+          <th class="col-channels">Ch</th>
+          <th class="col-size">Size</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{range .Tracks}}
+        <tr class="track-row">
+          <td class="col-num track-num">{{.Index}}</td>
+          <td class="col-filename track-filename" title="{{.Filename}}">{{.Filename}}</td>
+          <td class="col-codec track-codec">{{.Codec}}</td>
+          <td class="col-bitrate track-bitrate">{{.Bitrate}}</td>
+          <td class="col-duration track-duration">{{.Duration}}</td>
+          <td class="col-samplerate track-samplerate">{{.SampleRate}}</td>
+          <td class="col-channels track-channels">{{.Channels}}</td>
+          <td class="col-size track-size">{{.Size}}</td>
+        </tr>
+        {{end}}
+      </tbody>
+    </table>
+  </div>
+  {{else}}
+  <div class="dir-empty">
+    <p>No tracks indexed in this directory.</p>
+    <p class="text-muted">Click ↻ Re-index to scan the library.</p>
+  </div>
+  {{end}}
+
+</div>
+</body>
+</html>
+{{end}}

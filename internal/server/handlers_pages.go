@@ -2,8 +2,10 @@ package server
 
 import (
 	"bytes"
+	"fmt"
 	"html/template"
 	"log/slog"
+	"math"
 	"net/http"
 	"net/url"
 	"path/filepath"
@@ -105,17 +107,29 @@ func buildTreeNodeData(lib LibraryConfig, dir db.Directory) TreeNodeData {
 // treeNodeTmpl is the inline template for rendering a single tree node.
 // Defined once at package init so tests and the API handler share the same template
 // without requiring template files on disk.
+//
+// Interaction model:
+//   - Clicking the label: loads directory details into #content-area via HTMX hx-select.
+//     event.stopPropagation() prevents the row's expand trigger from also firing.
+//   - Clicking anywhere else on the row (toggle, icon, codec badge):
+//     expands/collapses children and loads child nodes into .tree-children.
 var treeNodeTmpl = template.Must(template.New("tree_node").Parse(`<div class="tree-node" data-path="{{.Path}}">
   <div class="tree-node-row"
        hx-get="/api/tree/{{.LibraryID}}/children?parent={{.PathEncoded}}"
        hx-target="next .tree-children"
        hx-swap="innerHTML"
-       hx-trigger="click"
-       onclick="this.classList.toggle('expanded')"
+       hx-trigger="click[!event.target.closest('.tree-label,.tree-actions')]"
+       onclick="if(!event.target.closest('.tree-label,.tree-actions'))this.classList.toggle('expanded')"
        title="{{.Path}}">
     <span class="tree-toggle">▶</span>
     <span class="tree-icon">{{if .HasCover}}🎵{{else}}📁{{end}}</span>
-    <span class="tree-label">{{.Basename}}</span>
+    <span class="tree-label"
+          hx-get="/dir?path={{.AbsEncoded}}"
+          hx-target="#content-area"
+          hx-select="#dir-content"
+          hx-swap="innerHTML"
+          hx-push-url="true"
+          onclick="event.stopPropagation(); document.querySelectorAll('.tree-node-row').forEach(function(el){el.classList.remove('active')}); this.closest('.tree-node-row').classList.add('active')">{{.Basename}}</span>
     {{if .CodecSummary}}<span class="codec-badge {{.CodecClass}}">{{.CodecSummary}}</span>{{end}}
     <span class="tree-actions">
       <a class="tree-open-link"
@@ -150,6 +164,163 @@ func findLibConfigByID(cfg Config, id int64) (LibraryConfig, bool) {
 		}
 	}
 	return LibraryConfig{}, false
+}
+
+// --- Directory page ---
+
+// trackRow holds pre-formatted track data for the directory page template.
+type trackRow struct {
+	Index      int
+	Filename   string
+	Codec      string
+	Bitrate    string
+	Duration   string
+	SampleRate string
+	Channels   int64
+	Size       string
+}
+
+// dirPageData is the template data for the audio directory detail page.
+type dirPageData struct {
+	Path         string // absolute resolved path (for cover URL)
+	PathEncoded  string // URL-encoded path
+	LibraryName  string
+	DirName      string
+	HasCover     bool
+	CodecSummary string
+	CodecClass   string
+	TrackCount   int
+	Tracks       []trackRow
+}
+
+// fmtBitrate formats a bitrate in bits/sec to a human-readable string (e.g. "320 kbps").
+func fmtBitrate(bps int64) string {
+	if bps <= 0 {
+		return "–"
+	}
+	kbps := bps / 1000
+	if kbps > 0 {
+		return fmt.Sprintf("%d kbps", kbps)
+	}
+	return fmt.Sprintf("%d bps", bps)
+}
+
+// fmtDuration formats a duration in seconds to m:ss or h:mm:ss.
+func fmtDuration(secs float64) string {
+	if secs <= 0 {
+		return "–"
+	}
+	total := int(math.Round(secs))
+	h := total / 3600
+	m := (total % 3600) / 60
+	s := total % 60
+	if h > 0 {
+		return fmt.Sprintf("%d:%02d:%02d", h, m, s)
+	}
+	return fmt.Sprintf("%d:%02d", m, s)
+}
+
+// fmtSampleRate formats a sample rate in Hz to a human-readable string (e.g. "44.1 kHz").
+func fmtSampleRate(hz int64) string {
+	if hz <= 0 {
+		return "–"
+	}
+	khz := float64(hz) / 1000.0
+	if khz == float64(int(khz)) {
+		return fmt.Sprintf("%d kHz", int(khz))
+	}
+	return fmt.Sprintf("%.1f kHz", khz)
+}
+
+// fmtSize formats a byte count to a human-readable string (e.g. "25.3 MB").
+func fmtSize(bytes int64) string {
+	if bytes <= 0 {
+		return "–"
+	}
+	const (
+		kb = 1024
+		mb = 1024 * kb
+		gb = 1024 * mb
+	)
+	switch {
+	case bytes >= gb:
+		return fmt.Sprintf("%.1f GB", float64(bytes)/float64(gb))
+	case bytes >= mb:
+		return fmt.Sprintf("%.1f MB", float64(bytes)/float64(mb))
+	case bytes >= kb:
+		return fmt.Sprintf("%.1f KB", float64(bytes)/float64(kb))
+	default:
+		return fmt.Sprintf("%d B", bytes)
+	}
+}
+
+// buildDirPageData constructs dirPageData for the template.
+func buildDirPageData(lib LibraryConfig, dir *db.Directory, tracks []db.Track, resolvedPath string) dirPageData {
+	rows := make([]trackRow, len(tracks))
+	for i, t := range tracks {
+		rows[i] = trackRow{
+			Index:      i + 1,
+			Filename:   t.Filename,
+			Codec:      t.Codec,
+			Bitrate:    fmtBitrate(t.Bitrate),
+			Duration:   fmtDuration(t.Duration),
+			SampleRate: fmtSampleRate(t.SampleRate),
+			Channels:   t.Channels,
+			Size:       fmtSize(t.Size),
+		}
+	}
+	return dirPageData{
+		Path:         resolvedPath,
+		PathEncoded:  url.QueryEscape(resolvedPath),
+		LibraryName:  lib.Name,
+		DirName:      filepath.Base(resolvedPath),
+		HasCover:     dir.HasCover,
+		CodecSummary: dir.CodecSummary,
+		CodecClass:   codecClass(dir.CodecSummary),
+		TrackCount:   len(tracks),
+		Tracks:       rows,
+	}
+}
+
+// handleDirPage renders the audio directory detail page.
+// GET /dir?path=ABSOLUTE_PATH
+func (s *Server) handleDirPage(w http.ResponseWriter, r *http.Request) {
+	path := r.URL.Query().Get("path")
+	if path == "" {
+		http.Error(w, "path required", http.StatusBadRequest)
+		return
+	}
+
+	resolved, err := LibraryOnlyValidate(path, s.libRoots())
+	if err != nil {
+		WritePathError(w, err)
+		return
+	}
+
+	lib, rel, ok := s.findLibraryForPath(resolved)
+	if !ok {
+		http.Error(w, "library not found for path", http.StatusNotFound)
+		return
+	}
+
+	dir, err := s.db.GetDirectoryByPath(lib.ID, rel)
+	if err != nil {
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+	if dir == nil {
+		http.Error(w, "directory not found", http.StatusNotFound)
+		return
+	}
+
+	tracks, err := s.db.GetDirectoryFiles(dir.ID)
+	if err != nil {
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+
+	data := buildDirPageData(lib, dir, tracks, resolved)
+	s.tmpl.render(w, "directory.html", data)
 }
 
 // --- Index page ---

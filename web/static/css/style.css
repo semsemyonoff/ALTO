@@ -305,3 +305,130 @@ a:hover { color: var(--teal); text-decoration: underline; }
 .text-teal  { color: var(--teal); }
 .text-blue  { color: var(--blue); }
 .text-green { color: var(--green); }
+
+/* ── Directory page ───────────────────────────────────────────── */
+
+.dir-page {
+  max-width: 1100px;
+}
+
+.dir-header {
+  display: flex;
+  gap: 24px;
+  align-items: flex-start;
+  margin-bottom: 28px;
+}
+
+.dir-cover {
+  width: 140px;
+  height: 140px;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  flex-shrink: 0;
+  background: var(--bg3);
+}
+
+.dir-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 4px;
+  min-width: 0;
+}
+
+.dir-breadcrumb {
+  font-size: 12px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.dir-title {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.25;
+}
+
+.dir-stats {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.dir-empty {
+  padding: 32px 0;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 2;
+}
+
+/* ── Tracks table ─────────────────────────────────────────────── */
+
+.tracks-section {
+  overflow-x: auto;
+}
+
+.tracks-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  min-width: 560px;
+}
+
+.tracks-table thead {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.tracks-table th {
+  padding: 8px 10px;
+  text-align: left;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.tracks-table td {
+  padding: 7px 10px;
+  border-bottom: 1px solid rgba(42, 50, 65, 0.6);
+  vertical-align: middle;
+}
+
+.track-row:hover td {
+  background: var(--bg2);
+}
+
+.col-num       { width: 36px; text-align: right; }
+.col-filename  { min-width: 200px; }
+.col-codec     { width: 70px; }
+.col-bitrate   { width: 90px; }
+.col-duration  { width: 80px; }
+.col-samplerate { width: 100px; }
+.col-channels  { width: 40px; text-align: center; }
+.col-size      { width: 90px; text-align: right; }
+
+.track-num     { color: var(--muted); font-size: 12px; text-align: right; }
+.track-filename {
+  font-family: 'Consolas', 'Menlo', monospace;
+  font-size: 12px;
+  max-width: 360px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.track-codec   { color: var(--teal); font-size: 11px; font-weight: 600; text-transform: uppercase; }
+.track-bitrate { color: var(--muted); }
+.track-duration { color: var(--text); }
+.track-samplerate { color: var(--muted); font-size: 12px; }
+.track-channels { color: var(--muted); text-align: center; }
+.track-size    { color: var(--muted); text-align: right; font-size: 12px; }

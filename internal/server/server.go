@@ -132,6 +132,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("GET /{$}", s.handleIndex)
+	s.mux.HandleFunc("GET /dir", s.handleDirPage)
 	s.mux.HandleFunc("GET /api/libraries", s.handleLibraries)
 	s.mux.HandleFunc("GET /api/tree/{libraryID}", s.handleTree)
 	s.mux.HandleFunc("GET /api/tree/{libraryID}/children", s.handleTreeChildren)

@@ -128,13 +128,13 @@
 - [x] run tests - must pass before next task
 
 ### Task 6: Web UI - audio directory page
-- [ ] create audio directory template (`web/templates/directory.html`)
-- [ ] display cover art if available (served via `/api/cover?path=...`)
-- [ ] display file list table: filename, codec, bitrate, duration, sample rate, channels, file size
-- [ ] style the page to match ALTO design (teal/green palette, clean layout)
-- [ ] implement HTMX partial loading so clicking a directory in the tree loads its page in the content area
-- [ ] write tests for directory page rendering with various file combinations
-- [ ] run tests - must pass before next task
+- [x] create audio directory template (`web/templates/directory.html`)
+- [x] display cover art if available (served via `/api/cover?path=...`)
+- [x] display file list table: filename, codec, bitrate, duration, sample rate, channels, file size
+- [x] style the page to match ALTO design (teal/green palette, clean layout)
+- [x] implement HTMX partial loading so clicking a directory in the tree loads its page in the content area
+- [x] write tests for directory page rendering with various file combinations
+- [x] run tests - must pass before next task
 
 ### Task 7: Transcoding engine with ffmpeg
 - [ ] create `internal/transcode/engine.go` with `Engine` struct and `Transcode(ctx, job)` method
