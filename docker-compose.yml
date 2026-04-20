@@ -11,7 +11,7 @@ services:
       ALTO_DB_PATH: "/data/alto.db"
       ALTO_CACHE_DIR: "/data/cache"
     volumes:
-      - /path/to/your/music:/music:ro      # :ro is safe for Shared mode only; Local and Replace modes need :rw
+      - /path/to/your/music:/music:ro # :ro is safe for Shared mode only; Local and Replace modes need :rw
       - /path/to/your/lossless:/lossless:ro # same as above
       - /path/to/output:/out
       - alto_data:/data
