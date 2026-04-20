@@ -7,6 +7,7 @@
   <link rel="icon" href="/static/logo.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/static/css/style.css">
   <script src="/static/js/htmx.min.js" defer></script>
+  <script src="/static/js/layout.js" defer></script>
 </head>
 <body>
 <div class="app-shell">
@@ -29,9 +30,16 @@
     </button>
   </header>
 
-  <aside class="app-sidebar">
+  <aside class="app-sidebar" id="app-sidebar">
     {{template "sidebar" .}}
   </aside>
+
+  <div class="app-sidebar-resizer"
+       role="separator"
+       aria-controls="app-sidebar"
+       aria-label="Resize sidebar"
+       aria-orientation="vertical"
+       tabindex="0"></div>
 
   <main class="app-content" id="content-area">
     {{if .Notice}}

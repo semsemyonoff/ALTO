@@ -31,9 +31,10 @@ a:hover { color: var(--teal); text-decoration: underline; }
 /* ── Layout ───────────────────────────────────────────────────── */
 
 .app-shell {
+  --sidebar-width: 280px;
   display: grid;
   grid-template-rows: 48px 1fr;
-  grid-template-columns: 280px 1fr;
+  grid-template-columns: var(--sidebar-width) 10px minmax(0, 1fr);
   height: 100vh;
   overflow: hidden;
 }
@@ -54,11 +55,55 @@ a:hover { color: var(--teal); text-decoration: underline; }
   background: var(--bg2);
   border-right: 1px solid var(--border);
   overflow: hidden;
+  min-width: 0;
+}
+
+.app-sidebar-resizer {
+  position: relative;
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.app-sidebar-resizer::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 2px;
+  transform: translateX(-50%);
+  background: linear-gradient(
+    180deg,
+    transparent,
+    rgba(110, 122, 138, 0.65) 12%,
+    rgba(110, 122, 138, 0.65) 88%,
+    transparent
+  );
+  transition: background 0.15s ease, box-shadow 0.15s ease;
+}
+
+.app-sidebar-resizer:hover::before,
+.app-sidebar-resizer:focus-visible::before,
+.app-sidebar-resizer.dragging::before,
+body.sidebar-resizing .app-sidebar-resizer::before {
+  background: linear-gradient(
+    180deg,
+    transparent,
+    rgba(58, 212, 196, 0.9) 12%,
+    rgba(58, 212, 196, 0.9) 88%,
+    transparent
+  );
+  box-shadow: 0 0 0 1px rgba(58, 212, 196, 0.18);
+}
+
+.app-sidebar-resizer:focus-visible {
+  outline: none;
 }
 
 .app-content {
   overflow-y: auto;
   padding: 24px;
+  min-width: 0;
 }
 
 .app-notice {
@@ -325,6 +370,12 @@ a:hover { color: var(--teal); text-decoration: underline; }
 }
 
 @keyframes spin { to { transform: rotate(360deg); } }
+
+body.sidebar-resizing,
+body.sidebar-resizing * {
+  cursor: col-resize !important;
+  user-select: none !important;
+}
 
 /* ── Utilities ────────────────────────────────────────────────── */
 
