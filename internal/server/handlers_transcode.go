@@ -211,7 +211,11 @@ func (s *Server) handleTranscodeProgress(w http.ResponseWriter, r *http.Request)
 			return
 		case p, open := <-ch:
 			if !open {
-				// Job finished; send terminal event.
+				// Job finished. The fanout goroutine closes subscriber channels
+				// concurrently with the engine goroutine calling jm.complete, so
+				// js.status may not be set yet. Wait for js.done (closed inside
+				// jm.complete after status is set) before reading the terminal status.
+				<-js.done
 				s.writeProgressDoneEvent(w, js)
 				flusher.Flush()
 				return

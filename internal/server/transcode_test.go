@@ -374,6 +374,13 @@ func TestHandleTranscodeProgress_LiveStream(t *testing.T) {
 	if !strings.Contains(progW.Body.String(), "event: done") {
 		t.Errorf("expected 'event: done', got: %s", progW.Body.String())
 	}
+	// Regression: the terminal SSE event must report status "done" once the engine
+	// has returned without error. A prior race between the fanout goroutine closing
+	// subscriber channels and jm.complete setting js.status caused the SSE handler
+	// to emit status "running" here, which the UI surfaced as "Transcoding failed".
+	if !strings.Contains(progW.Body.String(), `"status":"done"`) {
+		t.Errorf("expected terminal event status=done, got: %s", progW.Body.String())
+	}
 	if !strings.Contains(progW.Body.String(), `"current_file_number":1`) {
 		t.Errorf("expected current_file_number in progress payload, got: %s", progW.Body.String())
 	}
